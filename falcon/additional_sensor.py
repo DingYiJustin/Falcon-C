@@ -26,13 +26,18 @@ import habitat_sim
 from dataclasses import dataclass
 from habitat.config.default_structured_configs import LabSensorConfig
 from habitat.tasks.utils import cartesian_to_polar
-from habitat.utils.geometry_utils import quaternion_rotate_vector
+from habitat.utils.geometry_utils import quaternion_rotate_vector, quaternion_from_coeff
 
 if TYPE_CHECKING:
     from omegaconf import DictConfig
 
 from habitat.tasks.rearrange.utils import UsesArticulatedAgentInterface
 
+from extensions.obstacle_map import ObstacleMap
+from extensions.geometry_utils import xyz_yaw_to_tf_matrix
+from depth_camera_filtering import filter_depth
+
+import cv2
 
 @dataclass
 class OracleShortestPathSensorConfig(LabSensorConfig):
@@ -69,6 +74,11 @@ class SocialCompassSensorConfig(LabSensorConfig):
 @dataclass
 class OracleHumanoidFutureTrajectorySensorConfig(LabSensorConfig):
     type: str = "OracleHumanoidFutureTrajectorySensor"
+    future_step: int = 5
+
+@dataclass
+class OracleHumanoidFutureTrajectoryMapSensorConfig(LabSensorConfig):
+    type: str = "OracleHumanoidFutureTrajectoryMapSensor"
     future_step: int = 5
 
 @registry.register_sensor(name="OracleShortestPathSensor")
@@ -434,6 +444,138 @@ class OracleHumanoidFutureTrajectorySensor(UsesArticulatedAgentInterface, Sensor
 
         return self.result_list.tolist()
 
+@registry.register_sensor
+class OracleHumanoidFutureTrajectoryMapSensor(UsesArticulatedAgentInterface, Sensor):
+    """
+    Assumed Oracle Humanoid Future Trajectory Sensor.
+    """
+
+    cls_uuid: str = "oracle_humanoid_future_trajectory_map"
+
+    def __init__(self, *args, sim, task, **kwargs):
+        self._sim = sim
+        self._task = task
+        self.future_step = kwargs['config']['future_step'] 
+        # self.max_human_num = 6
+        self.human_num = task._human_num
+        self.result_list = None  
+        
+        self.current_episode_id = None
+        self.current_episode_scene_id = None
+        self.current_episode_init_yaw = None
+
+        super().__init__(*args, task=task, **kwargs)
+
+    @staticmethod
+    def _get_uuid(*args, **kwargs):
+        return OracleHumanoidFutureTrajectoryMapSensor.cls_uuid
+
+    @staticmethod
+    def _get_sensor_type(*args, **kwargs):
+        return SensorTypes.TENSOR
+
+    def _get_observation_space(self, *args, config, **kwargs):
+        return spaces.Box(
+            shape=(101,101, self.future_step),
+            low=np.finfo(np.float32).min,
+            high=np.finfo(np.float32).max,
+            dtype=np.float32,
+        )
+
+    @staticmethod
+    def _initialize_map(self):
+        """Initialize a zero map with the desired shape."""
+        return np.zeros((self.future_step, 101, 101), dtype=np.float32)
+    
+    def _quat_to_xy_heading(self, quat):
+        direction_vector = np.array([0, 0, -1])
+
+        heading_vector = quaternion_rotate_vector(quat, direction_vector)
+
+        phi = cartesian_to_polar(-heading_vector[2], heading_vector[0])[1]
+        return np.array([phi], dtype=np.float32)
+
+    def get_observation(self, task, observations, episode, *args: Any, **kwargs: Any):
+        
+        try:
+            human_num = self._task._human_num
+            future_map = self._initialize_map(self)
+            # Initialize the map instead of the result list
+            if human_num != self.human_num:
+                self.human_num = human_num
+
+            if self.human_num == 0:
+                return np.transpose(future_map, (1, 2, 0))
+            
+            human_future_trajectory = task.measurements.measures.get("human_future_trajectory")._metric
+            if not human_future_trajectory:
+                return np.transpose(future_map, (1, 2, 0))
+
+            # Get robot position
+            robot_pos = np.array(self._sim.get_agent_data(0).articulated_agent.base_pos)[[0, 2]]
+            
+            # Centering the robot position at the center of the map
+            # robot_pixel_x = 50  # Center x in a 101x101 map
+            # robot_pixel_y = 50  # Center y in a 101x101 map
+
+            for key, trajectories in human_future_trajectory.items():
+                trajectories = np.array(trajectories)
+                trajectories = trajectories.astype('float32')
+                
+                for t in range(len(trajectories)):
+                    human_position = trajectories[t, [0, 2]] - robot_pos
+                    
+                    # Calculate distance from robot to human
+                    distance = np.linalg.norm(human_position)
+
+                    # Only draw if the human is within 10 meters
+                    if distance <= 10.0:
+                        # Convert human position to pixel coordinates
+                        human_pixel_x = int(50 + (-human_position[1]) * 10)  # Centering the human position
+                        human_pixel_y = int(50 + (-human_position[0]) * 10)  # Centering the human position
+                        
+                        # Ensure pixel coordinates are within the map bounds
+                        if 0 <= human_pixel_x < 101 and 0 <= human_pixel_y < 101 and t<self.future_step:
+                            # Draw a filled circle for the human on the map
+                            # future_map = np.ascontiguousarray(future_map)
+                            cv2.circle(future_map[t, :, :], (human_pixel_x, human_pixel_y), radius=3, color=1, thickness=-1)
+                # cv2.circle(future_map[t, :, :], (50, 50), radius=2, color=1, thickness=-1)
+            future_map = np.transpose(future_map, (1, 2, 0))
+            # print('future_map.shape',future_map.shape)
+            # if self.current_episode_id != episode.episode_id or self.current_episode_scene_id != episode.scene_id:
+            #     self._obstacle_map = ObstacleMap(min_height=0.61, max_height=0.88, agent_radius=0.25)
+            #     self.current_episode_id = episode.episode_id
+            #     self.current_episode_scene_id = episode.scene_id
+            
+            agent_state = self._sim.get_agent_state()
+
+            rotation_world_start = quaternion_from_coeff(episode.start_rotation)
+            rotation_world_agent = agent_state.rotation
+            
+            camera_yaw = self._quat_to_xy_heading(
+                rotation_world_agent.inverse() * rotation_world_start
+            )[0] #- to rotate back
+            
+            if self.current_episode_id != episode.episode_id or self.current_episode_scene_id != episode.scene_id:
+                self.current_episode_id = episode.episode_id
+                self.current_episode_scene_id = episode.scene_id
+                self.current_episode_init_yaw = camera_yaw
+                # print('self.current_episode_init_yaw', camera_yaw)
+            
+            camera_yaw -= self.current_episode_init_yaw
+            # print('camera_yaw degree ', np.degrees(camera_yaw))
+            
+            center = (future_map.shape[0] // 2, future_map.shape[1] // 2)  # (width, height) for OpenCV
+            rotation_matrix = cv2.getRotationMatrix2D(center, np.degrees(camera_yaw), 1.0) 
+            for i in range(self.future_step):
+                future_map[:,:,i] = cv2.warpAffine(future_map[:,:,i], rotation_matrix, (101, 101), flags=cv2.INTER_LINEAR)
+            return future_map
+        
+        except Exception as e:
+            print("Human Future Trajectory Map Sensor Exception", e)
+            return np.zeros((101, 101, self.future_step), dtype=np.float32)
+            
+
 cs = ConfigStore.instance()
 
 cs.store(
@@ -477,4 +619,10 @@ cs.store(
     group="habitat/task/lab_sensors",
     name="oracle_humanoid_future_trajectory",
     node=OracleHumanoidFutureTrajectorySensorConfig,
+)
+cs.store(
+    package="habitat.task.lab_sensors.oracle_humanoid_future_trajectory_map",
+    group="habitat/task/lab_sensors",
+    name="oracle_humanoid_future_trajectory_map",
+    node=OracleHumanoidFutureTrajectoryMapSensorConfig,
 )

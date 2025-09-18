@@ -124,3 +124,7 @@ habitat-lab/habitat/config/benchmark/nav/socialnav_v2/test_only_pointnav_task.ya
 habitat-lab/habitat/config/habitat/dataset/pointnav/hm3d_fin.yaml
 0807_spot_hm3d/
 data/
+
+output_*.txt
+err_*.txt
+pretrained_model

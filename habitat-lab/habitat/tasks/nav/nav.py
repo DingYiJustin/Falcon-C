@@ -600,12 +600,20 @@ class SPL(Measure):
 
         self._previous_position = current_position
 
+        d = max(self._start_end_episode_distance, self._agent_episode_distance) if max(
+                self._start_end_episode_distance, self._agent_episode_distance
+            ) != 0 else 1 # avoid dvision by 0
         self._metric = ep_success * (
             self._start_end_episode_distance
-            / max(
-                self._start_end_episode_distance, self._agent_episode_distance
-            )
+            /  d
         )
+        
+        # self._metric = ep_success * (
+        #     self._start_end_episode_distance
+        #     / max(
+        #         self._start_end_episode_distance, self._agent_episode_distance
+        #     )
+        # )
 
 
 @registry.register_measure

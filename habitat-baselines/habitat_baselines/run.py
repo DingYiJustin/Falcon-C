@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 ## for import functions related to falcon
 import falcon
+import extensions
 
 @hydra.main(
     version_base=None,

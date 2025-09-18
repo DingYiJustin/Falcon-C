@@ -207,6 +207,9 @@ class SingleAgentAccessMgr(AgentAccessMgr):
                 map_location="cpu",
                 weights_only=False,
             )
+            
+            if 0 in pretrained_state.keys() or '0' in pretrained_state.keys(): # if multi agent state in pretrained file
+                pretrained_state = pretrained_state[0]
 
         # adapt to multi-agent setup
         if self._config.habitat_baselines.rl.ddppo.pretrained and (self.agent_name == "agent_0" or self.agent_name == "main_agent") : 
@@ -217,7 +220,8 @@ class SingleAgentAccessMgr(AgentAccessMgr):
             #     }
             # )
             # adapt to better reload checkpoints
-            if "oracle_humanoid_future_trajectory" in self._env_spec.observation_space.spaces:
+            if (self.agent_name == "agent_0" and self._config.habitat_baselines.rl.policy.agent_0.name == 'PointNavResNetPolicy'):
+            # if "oracle_humanoid_future_trajectory" in self._env_spec.observation_space.spaces:
                 model_state_dict = actor_critic.state_dict()
                 filtered_pretrained_state_dict = {k[len("actor_critic.") :]: v for k, v in pretrained_state["state_dict"].items() if k[len("actor_critic.") :] in model_state_dict and v.shape == model_state_dict[k[len("actor_critic.") :]].shape}
                 model_state_dict.update(filtered_pretrained_state_dict)
@@ -228,9 +232,11 @@ class SingleAgentAccessMgr(AgentAccessMgr):
                 model_state_dict.update(filtered_pretrained_state_dict)
                 actor_critic.load_state_dict(model_state_dict, strict=False)
             else:
+                print("loading state dict 1")
                 actor_critic.load_state_dict(
                         { 
-                            k[len("actor_critic.") :]: v
+                            k : v
+                            # k[len("actor_critic.") :]: v
                             for k, v in pretrained_state["state_dict"].items()
                         }
                     )
@@ -292,7 +298,9 @@ class SingleAgentAccessMgr(AgentAccessMgr):
         self._actor_critic.load_state_dict(ckpt["state_dict"])
 
     def load_state_dict(self, state: Dict) -> None:
-        self._actor_critic.load_state_dict(state["state_dict"])
+        miss, unexpect = self._actor_critic.load_state_dict(state["state_dict"],strict=False)
+        print("missing key", miss)
+        print("unexpect key", unexpect)
         if self._updater is not None:
             self._updater.load_state_dict(state)
             if "lr_sched_state" in state:
