@@ -97,13 +97,19 @@ class FALCONEvaluatorWithCSV(Evaluator):
             cid = id.split(" ")
             print("cid length", len(cid))
             scene_id, episode_id = cid[0], cid[1]
-            print('scene_id:',scene_id,'episode_id',episode_id)
             k = (
                 scene_id,
                 episode_id,
             )
-            ep_eval_count[k] += 1
-            # print('ep_eval_count[k]', ep_eval_count[k])
+            row = df[df['episode_id'] == id]
+            # Convert the row to a dictionary excluding the 'episode_id'
+            if not row.empty:
+                row_dict = row.iloc[0].drop('episode_id').to_dict()
+            else:
+                row_dict = {}
+            stats_episodes[(k, 1)] = row_dict
+            success_cal += row_dict['success']
+            print(f"Till now Success Rate: {success_cal/(len(stats_episodes)+1)}")
 
         if len(config.habitat_baselines.eval.video_option) > 0:
             # Add the first frame of the episode to the video.
@@ -194,12 +200,19 @@ class FALCONEvaluatorWithCSV(Evaluator):
             else:
                 step_data = [a.item() for a in action_data.env_actions.cpu()]
 
+            # print("dones:",dones)
+            # print("set prev episodes to done this code only works suitable for num_eval == 1")
+            for i in range(envs.num_envs):
+                if current_episodes_info[i].scene_id + " " +current_episodes_info[i].episode_id in episode_ids:
+                    print("set", current_episodes_info[i].scene_id + " " +current_episodes_info[i].episode_id, "to stop")
+                    step_data[i] = np.array([0])
+            
             outputs = envs.step(step_data)
 
             observations, rewards_l, dones, infos = [
                 list(x) for x in zip(*outputs)
             ]
-
+            
             for i in range(envs.num_envs):
                 episode_key = (
                     current_episodes_info[i].scene_id,
@@ -288,10 +301,14 @@ class FALCONEvaluatorWithCSV(Evaluator):
                     else:
                         frame = overlay_frame(frame, disp_info)
                         rgb_frames[i].append(frame)
-
+                
                 # episode ended
                 if not not_done_masks[i].any().item():
                     pbar.update()
+                    
+                #if not not_done_masks[i].any().item():
+                if not not_done_masks[i].any().item() and not (current_episodes_info[i].scene_id + " " +current_episodes_info[i].episode_id in episode_ids):
+                    # pbar.update()
                     if "success" in disp_info:
                         success_cal += disp_info['success']
                         print(f"Till now Success Rate: {success_cal/(len(stats_episodes)+1)}")

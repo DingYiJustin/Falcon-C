@@ -347,11 +347,16 @@ class MultiAgentAccessMgr(AgentAccessMgr):
                     agent.load_state_dict(state[str(agent_i)])
                 except KeyError as e:
                     # If neither key type is found, raise a more informative error.
-                    raise KeyError(
-                        f"Could not find state for agent {agent_i} in the state dictionary. "
-                        f"Attempted integer key '{agent_i}' and string key '{str(agent_i)}'. "
-                        f"Existing keys: {state.keys()}"
-                    ) from e
+                    try:
+                        print("try to load state dict directly")
+                        agent.load_state_dict(state)
+                    except KeyError as e:
+                        # If neither key type is found, raise a more informative error.
+                        raise KeyError(
+                            f"Could not find state for agent {agent_i} in the state dictionary. "
+                            f"Attempted integer key '{agent_i}' and string key '{str(agent_i)}'. "
+                            f"Existing keys: {state.keys()}"
+                        ) from e
 
     def load_ckpt_state_dict(self, ckpt):
         for agent in self._agents:
