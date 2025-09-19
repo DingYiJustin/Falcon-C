@@ -305,6 +305,11 @@ class FALCONEvaluatorWithCSV(Evaluator):
                 # episode ended
                 if not not_done_masks[i].any().item():
                     pbar.update()
+                    k = (
+                        current_episodes_info[i].scene_id,
+                        current_episodes_info[i].episode_id,
+                    )
+                    ep_eval_count[k] += 1
                     
                 #if not not_done_masks[i].any().item():
                 if not not_done_masks[i].any().item() and not (current_episodes_info[i].scene_id + " " +current_episodes_info[i].episode_id in episode_ids):
@@ -321,7 +326,7 @@ class FALCONEvaluatorWithCSV(Evaluator):
                         current_episodes_info[i].scene_id,
                         current_episodes_info[i].episode_id,
                     )
-                    ep_eval_count[k] += 1
+                    # ep_eval_count[k] += 1
                     # use scene_id + episode_id as unique id for storing stats
                     stats_episodes[(k, ep_eval_count[k])] = episode_stats
                     
