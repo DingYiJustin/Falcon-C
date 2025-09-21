@@ -415,7 +415,8 @@ class HumanFutureTrajectory(UsesArticulatedAgentInterface, Measure):
                 self.path_dict[agent_idx + 1] = []
             else:
                 temp_merged_path = merge_paths(path)
-                output_length = min(5, len(temp_merged_path))
+                # output_length = min(5, len(temp_merged_path))
+                output_length = min(20, len(temp_merged_path))
                 self.path_dict[agent_idx + 1] = temp_merged_path[:output_length]
 
         self._metric = self.path_dict
@@ -486,6 +487,60 @@ class HumanFutureTrajectory(UsesArticulatedAgentInterface, Measure):
             
         self._metric = self.path_dict
 
+@registry.register_measure
+class DTGCollisionAgentNavReward(Measure):
+    """
+    Reward that gives a continuous reward for the social navigation task.
+    """
+
+    cls_uuid: str = "dtg_collsion_agent_nav_reward"
+        
+    # @staticmethod
+    # def _get_uuid(*args, **kwargs):
+    #     return MultiAgentNavReward.cls_uuid
+    def _get_uuid(self,*args, **kwargs):
+        return self.cls_uuid
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._metric = 0.0
+        config = kwargs["config"]
+        # Get the config and setup the hyperparameters
+        self._config = config
+        self._sim = kwargs["sim"]
+        
+        self._collide_human_penalty = config.collide_human_penalty        
+        self._human_nums = 0
+
+    def reset_metric(self, *args, episode, task, observations, **kwargs):
+        if "human_num" in episode.info:
+            self._human_nums = min(episode.info['human_num'], self._sim.num_articulated_agents - 1)
+        else: 
+            self._human_nums = 0
+        self._metric = 0.0
+        
+    
+    def update_metric(self, *args, episode, task, observations, **kwargs):
+
+        # Start social nav reward
+        social_nav_reward = 0.0
+
+        # Component 1: Goal distance reward
+        distance_to_goal_reward = task.measurements.measures[
+            DistanceToGoalReward.cls_uuid
+        ].get_metric()
+        social_nav_reward +=  distance_to_goal_reward  # Slightly reduced reward multiplier
+
+        # Component 2: Collision detection for two agents
+        did_agents_collide = task.measurements.measures[
+            DidMultiAgentsCollide._get_uuid()
+        ].get_metric()
+        if did_agents_collide:
+            # task.should_end = True
+            social_nav_reward += self._collide_human_penalty
+            
+        self._metric = social_nav_reward
+
 @dataclass
 class MultiAgentNavReward(MeasurementConfig):
     r"""
@@ -533,6 +588,15 @@ class HumanVelocityMeasurementConfig(MeasurementConfig):
 class HumanFutureTrajectoryMeasurementConfig(MeasurementConfig):
     type: str = "HumanFutureTrajectory"
 
+@dataclass
+class DTGCollisionAgentNavReward(MeasurementConfig):
+    r"""
+    The reward for the multi agent navigation tasks.
+    """
+    type: str = "DTGCollisionAgentNavReward"
+    
+    collide_human_penalty: float = -20.0  
+    
 
 cs = ConfigStore.instance()
 
@@ -577,4 +641,11 @@ cs.store(
     group="habitat/task/measurements",
     name="human_future_trajectory",
     node=HumanFutureTrajectoryMeasurementConfig,
+)
+
+cs.store(
+    package="habitat.task.measurements.dtg_collsion_agent_nav_reward",
+    group="habitat/task/measurements",
+    name="dtg_collsion_agent_nav_reward",
+    node=DTGCollisionAgentNavReward,
 )

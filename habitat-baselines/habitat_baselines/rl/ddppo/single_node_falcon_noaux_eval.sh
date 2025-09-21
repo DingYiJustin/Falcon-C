@@ -29,8 +29,8 @@ TOTAL_GPU=1
 #     habitat-baselines/habitat_baselines/run.py \
 #     --config-name=social_nav_v2/falcon_hmap_hm3d_train.yaml \
 python -u -m habitat-baselines.habitat_baselines.run \
-    --config-name=social_nav_v2/falcon_hmap_hm3d_eval_with_csv.yaml \
-    > evaluation/falcon_hmap_1/hm3d/eval_with_csv_ckpt10.log 2>&1
+    --config-name=social_nav_v2/falcon_hm3d.yaml \
+    > evaluation/falcon/hm3d/eval_with_csv_ckpt10.log 2>&1
 
 echo "FINISH"
 # OMP_NUM_THREADS=$CPU_CORES_PER_GPU \

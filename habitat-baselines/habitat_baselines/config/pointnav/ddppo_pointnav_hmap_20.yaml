@@ -14,20 +14,20 @@ defaults:
   # - /habitat/task/lab_sensors@habitat.task.lab_sensors.main_agent_compass: compass_sensor 
   - _self_
 
-# habitat:
-#   task:
-#     actions:
-#       stop:
-#         type: StopAction
-#       move_forward:
-#         type: MoveForwardAction
-#         tilt_angle: 25
-#       turn_left:
-#         type: TurnLeftAction
-#         tilt_angle: 10
-#       turn_right:
-#         type: TurnRightAction
-#         tilt_angle: 10
+habitat:
+  task:
+    actions:
+      stop:
+        type: StopAction
+      move_forward:
+        type: MoveForwardAction
+        tilt_angle: 25
+      turn_left:
+        type: TurnLeftAction
+        tilt_angle: 10
+      turn_right:
+        type: TurnRightAction
+        tilt_angle: 10
 
 habitat_baselines:
   verbose: True
@@ -87,9 +87,9 @@ habitat_baselines:
       # The PyTorch distributed backend to use
       distrib_backend: NCCL
       # Visual encoder backbone
-      pretrained_weights: evaluation/falcon_hmap_1/hm3d/checkpoints/ckpt.3-1.pth
+      pretrained_weights: pretrained_model/pretrained_habitat3.pth
       # Initialize with pretrained weights
-      pretrained: True
+      pretrained: False
       # Initialize just the visual encoder backbone with pretrained weights
       pretrained_encoder: True
       # Whether the visual encoder backbone will be trained.
