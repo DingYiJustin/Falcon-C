@@ -24,12 +24,15 @@ from dataclasses import dataclass
 from habitat.config.default_structured_configs import MeasurementConfig
 
 from habitat.tasks.rearrange.utils import rearrange_collision
-from habitat.core.embodied_task import Measure
+from habitat.core.embodied_task import Measure,EmbodiedTask
 from habitat.tasks.rearrange.social_nav.utils import (
     robot_human_vec_dot_product,
 )
 from habitat.tasks.nav.nav import DistanceToGoalReward, DistanceToGoal
 from habitat.tasks.rearrange.utils import coll_name_matches
+from habitat.core.simulator import (
+    Simulator,
+)
 try:
     import magnum as mn
 except ImportError:
@@ -563,6 +566,49 @@ class MultiAgentNavReward(MeasurementConfig):
     # Set the id of the agent
     robot_idx: int = 0
 
+@registry.register_measure
+class SelfStopSuccess(Measure):
+    r"""Whether or not the agent succeeded at its task
+
+    This measure depends on DistanceToGoal measure.
+    """
+
+    cls_uuid: str = "self_stop_success"
+
+    def __init__(
+        self, sim: Simulator, config: "DictConfig", *args: Any, **kwargs: Any
+    ):
+        self._sim = sim
+        self._config = config
+        self._success_distance = 0.2 #self._config.success_distance
+
+        super().__init__()
+
+    def _get_uuid(self, *args: Any, **kwargs: Any) -> str:
+        return self.cls_uuid
+
+    def reset_metric(self, episode, task, *args: Any, **kwargs: Any):
+        task.measurements.check_measure_dependencies(
+            self.uuid, [DistanceToGoal.cls_uuid]
+        )
+        self.update_metric(episode=episode, task=task, *args, **kwargs)  # type: ignore
+
+    def update_metric(
+        self, episode, task: EmbodiedTask, *args: Any, **kwargs: Any
+    ):
+        distance_to_target = task.measurements.measures[
+            DistanceToGoal.cls_uuid
+        ].get_metric()
+
+        if (
+            distance_to_target < self._success_distance
+        ):
+            self._metric = 1.0
+            task.is_stop_called = True  
+        else:
+            self._metric = 0.0
+
+
 @dataclass
 class DidMultiAgentsCollideConfig(MeasurementConfig):
     type: str = "DidMultiAgentsCollide"
@@ -597,6 +643,13 @@ class DTGCollisionAgentNavReward(MeasurementConfig):
     
     collide_human_penalty: float = -20.0  
     
+@dataclass
+class SelfStopSuccess(MeasurementConfig):
+    r"""
+    The reward for the multi agent navigation tasks.
+    """
+    type: str = "SelfStopSuccess"
+    #success_distance:float = 0.2
 
 cs = ConfigStore.instance()
 
@@ -648,4 +701,11 @@ cs.store(
     group="habitat/task/measurements",
     name="dtg_collsion_agent_nav_reward",
     node=DTGCollisionAgentNavReward,
+)
+
+cs.store(
+    package="habitat.task.measurements.self_stop_success",
+    group="habitat/task/measurements",
+    name="self_stop_success",
+    node=SelfStopSuccess,
 )

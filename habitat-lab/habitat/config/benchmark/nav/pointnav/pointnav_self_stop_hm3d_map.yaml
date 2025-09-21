@@ -1,0 +1,41 @@
+# @package _global_
+
+defaults:
+  - pointnav_self_stop_base
+  - /habitat/dataset/pointnav: hm3d
+  - override /habitat/simulator/sensor_setups@habitat.simulator.agents.main_agent: depth_agent
+  - _self_
+
+habitat:
+  environment:
+    max_episode_steps: 500
+  simulator:
+    forward_step_size: 0.25
+    turn_angle: 10
+    agents:
+      main_agent:
+        sim_sensors:
+          depth_sensor: # arm_depth_sensor
+            height: 256
+            width: 256
+            position:
+            - 0.0
+            - 1.25
+            - 0.0
+            orientation:
+            - 0.0
+            - 0.0
+            - 0.0
+            hfov: 90
+            sensor_subtype: PINHOLE
+            noise_model: None
+            noise_model_kwargs: {}
+            # uuid: articulated_agent_arm_depth
+            min_depth: 0.0
+            max_depth: 10.0
+            normalize_depth: true
+    kinematic_mode: True ## my added
+    habitat_sim_v0:
+      gpu_device_id: 0
+      allow_sliding: True #
+      enable_physics: True # 

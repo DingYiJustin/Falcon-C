@@ -211,6 +211,26 @@ def tile_images(render_obs_images: List[np.ndarray]) -> np.ndarray:
         cur_x = next_x
     return final_im
 
+def rgba_to_rgb(rgba, background=(255, 255, 255)):
+    """
+    Convert an RGBA color to an RGB color.
+
+    Parameters:
+    - rgba: tuple (R, G, B, A) where R, G, B are in [0, 255] and A is in [0, 1]
+    - background: tuple (R, G, B) for the background color, default is white (255, 255, 255)
+
+    Returns:
+    - tuple (R_out, G_out, B_out) in [0, 255]
+    """
+    r, g, b, a = rgba
+    r_background, g_background, b_background = background
+    
+    # Calculate the resulting RGB values
+    r_out = int(r * a + r_background * (1 - a))
+    g_out = int(g * a + g_background * (1 - a))
+    b_out = int(b * a + b_background * (1 - a))
+    
+    return (r_out, g_out, b_out)
 
 def observations_to_image(observation: Dict, info: Dict) -> np.ndarray:
     r"""Generate image of single frame from observation and info
@@ -225,12 +245,41 @@ def observations_to_image(observation: Dict, info: Dict) -> np.ndarray:
     """
     render_obs_images: List[np.ndarray] = []
     for sensor_name in observation:
-        if 'other_agent_gps' in sensor_name or 'oracle_humanoid_future_trajectory' in sensor_name:
+        if 'other_agent_gps' in sensor_name or ('oracle_humanoid_future_trajectory' in sensor_name and 'oracle_humanoid_future_trajectory_map' not in sensor_name):
             continue
         elif 'oracle_shortest_path_sensor' in sensor_name or 'human_velocity_sensor' in sensor_name:
             continue
         elif sensor_name.startswith('agent_') and int(sensor_name.split('_')[1]) > 0: # 1 for agent_1
             continue
+        elif 'oracle_humanoid_future_trajectory_map' in sensor_name:
+            obs_k = observation[sensor_name].cpu().numpy()
+            height, width, future_steps = obs_k.shape
+    
+            # Create a 3-channel (RGB) image initialized to black
+            # visual_map = np.ones((height, width, 3), dtype=np.uint8)*255
+            visual_map = np.zeros((height, width, 3), dtype=np.uint8)
+            visual_map[:,:, 1] = 0
+            visual_map[:,:, 0] = 0
+            visual_map[:,:, 2] = 255
+            
+            # Define the color for human representations (e.g., red)
+            color = (0, 255, 0)  # Red in rgb format
+
+            # Loop through each time step
+            for t in range(future_steps):
+                # Create a mask where humans are present (assuming > 0 indicates presence)
+                human_mask = obs_k[:, :, t] > 0  # Non-zero values indicate human presence
+
+                # Calculate transparency based on time step (more future time steps = more transparent)
+                alpha = 1.0 - (t / future_steps+1)  # From 1.0 (current) to 0.0 (furthest future)
+
+                rgba_color = (0, 255, 0, alpha)
+                color = rgba_to_rgb(rgba_color)
+                
+                # Create an overlay for the current time step
+                # overlay = np.zeros((height, width, 3), dtype=np.uint8)
+                visual_map[human_mask] = color  # Set the overlay color where humans are present
+            render_obs_images.append(visual_map)
         elif len(observation[sensor_name].shape) > 1:
             obs_k = observation[sensor_name]
             if not isinstance(obs_k, np.ndarray):

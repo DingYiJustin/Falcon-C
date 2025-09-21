@@ -1,0 +1,18 @@
+reward,distance_to_goal,distance_to_goal_reward,multi_agent_nav_reward,success,did_multi_agents_collide,num_steps,spl,psc,stl,human_collision,episode_id
+10.819221496582031,0.1066985726356506,-0.0,-0.005,0.0,1.0,172.0,0.0,0.9476744186046512,0.0,1.0,data/scene_datasets/hm3d/val/00808-y9hTuugGdiq/y9hTuugGdiq.basis.glb 14
+4.501425743103027,0.1481795907020568,-0.0,-0.005,0.0,0.0,500.0,0.0,0.976,0.0,0.0,data/scene_datasets/hm3d/val/00808-y9hTuugGdiq/y9hTuugGdiq.basis.glb 13
+8.504634857177734,0.119076669216156,-0.0,-0.005,0.0,0.0,500.0,0.0,0.944,0.0,0.0,data/scene_datasets/hm3d/val/00808-y9hTuugGdiq/y9hTuugGdiq.basis.glb 12
+13.413519859313965,0.1182115748524665,-0.0,-0.005,0.0,0.0,500.0,0.0,0.98,0.0,0.0,data/scene_datasets/hm3d/val/00808-y9hTuugGdiq/y9hTuugGdiq.basis.glb 11
+15.142719268798828,0.1471060067415237,-0.0,0.0,0.0,0.0,500.0,0.0,0.984,0.0,0.0,data/scene_datasets/hm3d/val/00808-y9hTuugGdiq/y9hTuugGdiq.basis.glb 9
+3.350428819656372,0.1153764054179191,-0.0,-0.005,0.0,1.0,71.0,0.0,0.8873239436619719,0.0,1.0,data/scene_datasets/hm3d/val/00808-y9hTuugGdiq/y9hTuugGdiq.basis.glb 8
+6.84302282333374,0.0983555987477302,-0.0,-0.005,0.0,0.0,500.0,0.0,1.0,0.0,0.0,data/scene_datasets/hm3d/val/00815-h1zeeAwLh9Z/h1zeeAwLh9Z.basis.glb 7
+3.870183944702149,0.134390115737915,-0.0,-0.005,0.0,0.0,500.0,0.0,1.0,0.0,0.0,data/scene_datasets/hm3d/val/00808-y9hTuugGdiq/y9hTuugGdiq.basis.glb 6
+12.711432456970217,0.0943493396043777,-0.0,-0.005,0.0,0.0,500.0,0.0,0.956,0.0,0.0,data/scene_datasets/hm3d/val/00815-h1zeeAwLh9Z/h1zeeAwLh9Z.basis.glb 6
+9.871844291687012,0.0985243916511535,-0.0,-0.005,0.0,0.0,500.0,0.0,0.928,0.0,0.0,data/scene_datasets/hm3d/val/00808-y9hTuugGdiq/y9hTuugGdiq.basis.glb 5
+7.924570083618164,0.0953834578394889,-0.0,-0.005,0.0,0.0,500.0,0.0,0.988,0.0,0.0,data/scene_datasets/hm3d/val/00815-h1zeeAwLh9Z/h1zeeAwLh9Z.basis.glb 5
+8.000083923339844,0.05328219383955,-0.0,-0.005,0.0,0.0,500.0,0.0,1.0,0.0,0.0,data/scene_datasets/hm3d/val/00808-y9hTuugGdiq/y9hTuugGdiq.basis.glb 4
+11.339462280273438,0.0984672158956527,-0.0,-0.005,0.0,0.0,500.0,0.0,0.952,0.0,0.0,data/scene_datasets/hm3d/val/00815-h1zeeAwLh9Z/h1zeeAwLh9Z.basis.glb 4
+8.931835174560547,0.1211262419819831,-0.0,-0.005,0.0,0.0,500.0,0.0,0.928,0.0,0.0,data/scene_datasets/hm3d/val/00846-LNg5mXe1BDj/LNg5mXe1BDj.basis.glb 1
+6.092298984527588,0.1221442744135856,-0.0,-0.005,0.0,0.0,500.0,0.0,0.986,0.0,0.0,data/scene_datasets/hm3d/val/00806-tQ5s4ShP627/tQ5s4ShP627.basis.glb 5
+6.646112442016602,0.0,-0.0,-0.005,0.0,0.0,500.0,0.0,0.914,0.0,0.0,data/scene_datasets/hm3d/val/00875-66seV3BWPoX/66seV3BWPoX.basis.glb 0
+6.76482629776001,0.0932609215378761,-0.0,-0.005,0.0,1.0,99.0,0.0,0.9090909090909092,0.0,1.0,data/scene_datasets/hm3d/val/00808-y9hTuugGdiq/y9hTuugGdiq.basis.glb 1

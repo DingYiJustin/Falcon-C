@@ -83,10 +83,41 @@ def compare_episode_data(df1, df2):
     print_column_means_and_percentage(df1_common)
     print('df2 common:')
     print_column_means_and_percentage(df2_common)
-        
+
+def filter_unsuccessful_episodes(input_csv, output_csv, success_column='success'):
+    """
+    Filter episodes with distance_to_goal < 0.2 and not successful, and save to a CSV file.
+
+    Parameters:
+    input_csv (str): Path to the input CSV file.
+    output_csv (str): Path to the output CSV file.
+    success_column (str): The column name that indicates success (default is 'success').
+
+    Returns:
+    None
+    """
+    # Load the input CSV file into a DataFrame
+    df = pd.read_csv(input_csv)
+    
+    # Ensure the necessary columns are present
+    if 'distance_to_goal' not in df.columns or success_column not in df.columns:
+        print("Input DataFrame does not contain the necessary columns.")
+        return
+    
+    # Filter for episodes with distance_to_goal < 0.2 and not successful
+    filtered_df = df[(df['distance_to_goal'] < 0.2) & (df[success_column] != 1)]
+    
+    # Save the filtered DataFrame to the output CSV file
+    filtered_df.to_csv(output_csv, index=False)
+    
+    print(f"Filtered episodes saved to {output_csv}")
+
+
 df = pd.read_csv('./evaluation falcon_hmap_1 hm3d checkpoints ckpt.10-1.pth.csv')
 # print_column_means(df)
 print_column_means_and_percentage(df)
 
 df2 = pd.read_csv('./pretrained_model falcon_noaux_25.pth.csv')
 compare_episode_data(df,df2)
+
+filter_unsuccessful_episodes('./evaluation falcon_hmap_1 hm3d checkpoints ckpt.10-1.pth.csv', 'to_get_video.csv')
