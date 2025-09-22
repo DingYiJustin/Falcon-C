@@ -543,6 +543,147 @@ class DTGCollisionAgentNavReward(Measure):
             social_nav_reward += self._collide_human_penalty
             
         self._metric = social_nav_reward
+        
+@registry.register_measure
+class ModifiedDTGAgentNavReward(Measure):
+    """
+    Reward that gives a continuous reward for the social navigation task.
+    """
+
+    cls_uuid: str = "modified_dtg_agent_nav_reward"
+        
+    # @staticmethod
+    # def _get_uuid(*args, **kwargs):
+    #     return MultiAgentNavReward.cls_uuid
+    def _get_uuid(self,*args, **kwargs):
+        return self.cls_uuid
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._metric = 0.0
+        config = kwargs["config"]
+        # Get the config and setup the hyperparameters
+        self._config = config
+        self._sim = kwargs["sim"]
+        
+        self._negative_dtg_penalty_weight = 0.0
+        self._human_nums = 0
+
+    def reset_metric(self, *args, episode, task, observations, **kwargs):
+        if "human_num" in episode.info:
+            self._human_nums = min(episode.info['human_num'], self._sim.num_articulated_agents - 1)
+        else: 
+            self._human_nums = 0
+        self._metric = 0.0
+        
+    
+    def update_metric(self, *args, episode, task, observations, **kwargs):
+
+        # Start social nav reward
+        social_nav_reward = 0.0
+
+        # Component 1: Goal distance reward
+        distance_to_goal_reward = task.measurements.measures[
+            DistanceToGoalReward.cls_uuid
+        ].get_metric()
+        distance_to_goal_reward = distance_to_goal_reward if distance_to_goal_reward>=0.0 else self._negative_dtg_penalty_weight * distance_to_goal_reward
+        social_nav_reward +=  distance_to_goal_reward  # Slightly reduced reward multiplier
+            
+        self._metric = social_nav_reward
+
+@registry.register_measure
+class MinDistanceToGoalReward(Measure):
+    """
+    The measure calculates a reward based on the distance towards the goal.
+    The reward is `- (new_distance - previous_distance)` i.e. the
+    decrease of distance to the goal.
+    """
+
+    cls_uuid: str = "min_distance_to_goal_reward"
+
+    def __init__(
+        self, sim: Simulator, config: "DictConfig", *args: Any, **kwargs: Any
+    ):
+        self._sim = sim
+        self._config = config
+        self._previous_distance: Optional[float] = None
+        super().__init__()
+
+    @staticmethod
+    def _get_uuid(*args, **kwargs): #_get_uuid(self, *args: Any, **kwargs: Any) -> str:
+        return "min_distance_to_goal_reward" #self.cls_uuid
+
+    def reset_metric(self, episode, task, *args: Any, **kwargs: Any):
+        task.measurements.check_measure_dependencies(
+            self.uuid, [DistanceToGoal.cls_uuid]
+        )
+        self._previous_distance = task.measurements.measures[
+            DistanceToGoal.cls_uuid
+        ].get_metric()
+        self.update_metric(episode=episode, task=task, *args, **kwargs)  # type: ignore
+
+    def update_metric(
+        self, episode, task: EmbodiedTask, *args: Any, **kwargs: Any
+    ):
+        distance_to_target = task.measurements.measures[
+            DistanceToGoal.cls_uuid
+        ].get_metric()
+        self._metric = max(-(distance_to_target - self._previous_distance), 0)
+        self._previous_distance = min(self._previous_distance,distance_to_target)
+
+@registry.register_measure
+class MinDTGCollisionAgentNavReward(Measure):
+    """
+    Reward that gives a continuous reward for the social navigation task.
+    """
+
+    cls_uuid: str = "min_dtg_collsion_agent_nav_reward"
+        
+    # @staticmethod
+    # def _get_uuid(*args, **kwargs):
+    #     return MultiAgentNavReward.cls_uuid
+    def _get_uuid(self,*args, **kwargs):
+        return self.cls_uuid
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._metric = 0.0
+        config = kwargs["config"]
+        # Get the config and setup the hyperparameters
+        self._config = config
+        self._sim = kwargs["sim"]
+        
+        self._collide_human_penalty = -5.0 #config.collide_human_penalty        
+        self._human_nums = 0
+
+    def reset_metric(self, *args, episode, task, observations, **kwargs):
+        if "human_num" in episode.info:
+            self._human_nums = min(episode.info['human_num'], self._sim.num_articulated_agents - 1)
+        else: 
+            self._human_nums = 0
+        self._metric = 0.0
+        
+    
+    def update_metric(self, *args, episode, task, observations, **kwargs):
+
+        # Start social nav reward
+        social_nav_reward = 0.0
+
+        # Component 1: Goal distance reward
+        distance_to_goal_reward = task.measurements.measures[
+            "min_distance_to_goal_reward" #MinDistanceToGoalReward.cls_uuid
+        ].get_metric()
+        social_nav_reward +=  distance_to_goal_reward  # Slightly reduced reward multiplier
+
+        # Component 2: Collision detection for two agents
+        did_agents_collide = task.measurements.measures[
+            DidMultiAgentsCollide._get_uuid()
+        ].get_metric()
+        if did_agents_collide:
+            # task.should_end = True
+            social_nav_reward += self._collide_human_penalty
+            
+        self._metric = social_nav_reward
 
 @dataclass
 class MultiAgentNavReward(MeasurementConfig):
@@ -642,6 +783,14 @@ class DTGCollisionAgentNavReward(MeasurementConfig):
     type: str = "DTGCollisionAgentNavReward"
     
     collide_human_penalty: float = -20.0  
+
+@dataclass
+class MinDTGCollisionAgentNavReward(MeasurementConfig):
+    r"""
+    The reward for the multi agent navigation tasks.
+    """
+    type: str = "MinDTGCollisionAgentNavReward"
+    
     
 @dataclass
 class SelfStopSuccess(MeasurementConfig):
@@ -650,6 +799,22 @@ class SelfStopSuccess(MeasurementConfig):
     """
     type: str = "SelfStopSuccess"
     #success_distance:float = 0.2
+
+@dataclass
+class ModifiedDTGAgentNavReward(MeasurementConfig):
+    r"""
+    The reward for the multi agent navigation tasks.
+    """
+    type: str = "ModifiedDTGAgentNavReward"
+
+@dataclass
+class MinDistanceToGoalReward(MeasurementConfig):
+    r"""
+    The reward for the multi agent navigation tasks.
+    """
+    type: str = "MinDistanceToGoalReward"
+
+
 
 cs = ConfigStore.instance()
 
@@ -708,4 +873,25 @@ cs.store(
     group="habitat/task/measurements",
     name="self_stop_success",
     node=SelfStopSuccess,
+)
+
+cs.store(
+    package="habitat.task.measurements.modified_dtg_agent_nav_reward",
+    group="habitat/task/measurements",
+    name="modified_dtg_agent_nav_reward",
+    node=ModifiedDTGAgentNavReward,
+)
+
+cs.store(
+    package="habitat.task.measurements.min_distance_to_goal_reward",
+    group="habitat/task/measurements",
+    name="min_distance_to_goal_reward",
+    node=MinDistanceToGoalReward,
+)
+
+cs.store(
+    package="habitat.task.measurements.min_dtg_collsion_agent_nav_reward",
+    group="habitat/task/measurements",
+    name="min_dtg_collsion_agent_nav_reward",
+    node=MinDTGCollisionAgentNavReward,
 )

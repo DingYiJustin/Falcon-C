@@ -16,13 +16,14 @@ defaults:
 
 habitat:
   task:
-    slack_reward: 0.0
+    success_measure: success
+    # slack_reward: 0.0
     measurements:
       self_stop_success:
         type: SelfStopSuccess
     actions:
-      # stop:
-      #   type: StopAction
+      stop:
+        type: StopAction
       move_forward:
         type: MoveForwardAction
         tilt_angle: 25

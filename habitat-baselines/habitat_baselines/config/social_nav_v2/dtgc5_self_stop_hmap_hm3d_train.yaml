@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-  - /benchmark/nav/socialnav_v2: falcon_hm3d_task_for_train
+  - /benchmark/nav/socialnav_v2: dtgc_self_stop_hm3d_task_for_train
   - /habitat_baselines: habitat_baselines_rl_config_base
   - /habitat/simulator/sim_sensors@habitat_baselines.eval.extra_sim_sensors.third_rgb_sensor: third_rgb_sensor 
   - /habitat_baselines/rl/policy@habitat_baselines.rl.policy.agent_1: single_fixed
@@ -14,8 +14,6 @@ defaults:
   - /habitat/task/actions@habitat.task.actions.agent_0_discrete_move_forward: discrete_move_forward
   - /habitat/task/actions@habitat.task.actions.agent_0_discrete_turn_left: discrete_turn_left
   - /habitat/task/actions@habitat.task.actions.agent_0_discrete_turn_right: discrete_turn_right
-  # - /habitat/task/actions@habitat.task.actions.agent_0_discrete_move_backward: discrete_move_backward # new action 4
-  # - /habitat/task/actions@habitat.task.actions.agent_0_discrete_pause: discrete_pause # new action 5
   - /habitat/task/actions@habitat.task.actions.agent_1_oracle_nav_randcoord_action_obstacle: oracle_nav_action 
   - /habitat/task/actions@habitat.task.actions.agent_2_oracle_nav_randcoord_action_obstacle: oracle_nav_action 
   - /habitat/task/actions@habitat.task.actions.agent_3_oracle_nav_randcoord_action_obstacle: oracle_nav_action 
@@ -27,19 +25,22 @@ defaults:
   - _self_
 
 habitat:
-  environment:
-    iterator_options:
-      shuffle: False # keep the same order
+  dataset:
+    split: train
   gym:
     obs_keys: 
       # - agent_0_articulated_agent_jaw_rgb # use it if add RGB camera
       - agent_0_articulated_agent_jaw_depth
       - agent_0_pointgoal_with_gps_compass
       - agent_0_localization_sensor
-      # - agent_0_human_num_sensor  
+      - agent_0_human_num_sensor  
       - agent_0_oracle_humanoid_future_trajectory
       - agent_0_oracle_humanoid_future_trajectory_map
   task:
+    # measurements:
+    #   min_dtg_collsion_agent_nav_reward:
+    #     type: MinDTGCollisionAgentNavReward
+    #     collide_human_penalty: -5.0
     actions:
       agent_0_discrete_stop:
         lin_speed: 0.0 
@@ -93,34 +94,34 @@ habitat:
         ang_speed: 10.0
         allow_dyn_slide: True
 habitat_baselines:
-  evaluate: True
-  verbose: True 
-  trainer_name: "ddppo"
+  evaluate: False # True
+  verbose: True
+  trainer_name: "falcon_trainer" ## original ppo works for self._agent, but we need to train self._agent._agents[0]
   torch_gpu_id: 0
-  tensorboard_dir: "evaluation/falcon_hmap_1/hm3d/tb"
-  video_dir: "evaluation/falcon_hmap_1/hm3d/video"
+  tensorboard_dir: "evaluation/dtgc5_hmap_self_stop/hm3d/tb"
+  video_dir: "evaluation/dtgc5_hmap_self_stop/hm3d/video"
   test_episode_count: -1
-  eval_ckpt_path_dir: "evaluation/dtgc5_hmap/hm3d/checkpoints/ckpt.9.pth" #"evaluation/falcon_hmap_1/hm3d/checkpoints/ckpt.10-1.pth" #"pretrained_model/falcon_noaux_25.pth"
-  num_environments: 8
-  checkpoint_folder: "evaluation/falcon_hmap_1/hm3d/checkpoints"
+  num_environments: 20 #8
+  checkpoint_folder: "evaluation/dtgc5_hmap_self_stop/hm3d/checkpoints" # save_dir for training
   num_updates: -1
-  total_num_steps: 1e8
+  total_num_steps: 1e8 #15000000 # exact steps 12560368
   log_interval: 10
-  num_checkpoints: 200
+  num_checkpoints: 400 # interrupt recovery
   # Force PyTorch to be single threaded as
   # this improves performance considerably
   force_torch_single_threaded: True
-  load_resume_state_config: False
+  load_resume_state_config: True # False
 
   evaluator:
-    _target_: habitat_baselines.rl.ppo.falcon_evaluator_with_csv.FALCONEvaluatorWithCSV
+    _target_: habitat_baselines.rl.ppo.falcon_evaluator.FALCONEvaluator
 
   eval:
     use_ckpt_config: False 
     should_load_ckpt: True
-    # video_option: ["disk"]
 
   rl:
+    preemption:
+      save_resume_state_interval: 10
     agent:
       type: "MultiAgentAccessMgr"
       num_agent_types: 7
@@ -163,7 +164,7 @@ habitat_baselines:
       # The PyTorch distributed backend to use
       distrib_backend: NCCL
       # Visual encoder backbone
-      pretrained_weights: evaluation/dtgc5_hmap/hm3d/checkpoints/ckpt.9.pth #evaluation/falcon_hmap_1/hm3d/checkpoints/ckpt.10-1.pth #pretrained_model/OHT_map_pretrained_ckpt_10.pth #evaluation/falcon_hmap_1/hm3d/checkpoints/ckpt.10-1.pth #pretrained_model/pretrained_habitat3.pth
+      pretrained_weights: pretrained_model/falcon_hmap_hm3d_ckpt.10.pth #pretrained_model/OHT_map_pretrained_ckpt_10.pth
       # Initialize with pretrained weights
       pretrained: True # For finetune
       # Initialize just the visual encoder backbone with pretrained weights
@@ -177,3 +178,16 @@ habitat_baselines:
       backbone: resnet50
       rnn_type: LSTM
       num_recurrent_layers: 2
+      
+    # auxiliary_losses: 
+    #   people_counting:
+    #     max_human_num: 6
+    #     loss_scale: 0.1   
+    #   guess_human_position:
+    #     max_human_num: 6
+    #     position_dim: 2
+    #     loss_scale: 0.1   
+    #   future_trajectory_prediction:
+    #     max_human_num: 6
+    #     future_step: 4
+    #     loss_scale: 0.1       

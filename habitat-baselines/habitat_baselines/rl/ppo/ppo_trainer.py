@@ -384,8 +384,14 @@ class PPOTrainer(BaseRLTrainer):
                         self._env_spec.action_space.high,
                     )
                 else:
+                    # print('act = act.item()', act.item())
                     act = act.item()
+                    # print('self.config.habitat.task.measurements', self.config.habitat.task.measurements)
+                    if 'self_stop_success' in self.config.habitat.task.measurements.keys():
+                        act = act if act!= 0 else 1
+                        # print('act = act if act!= 0 else 1')
                 self.envs.async_step_at(index_env, act)
+                # print('action_data.actions',action_data.actions)
 
         with g_timer.avg_time("trainer.obs_insert"):
             self._agent.rollouts.insert(

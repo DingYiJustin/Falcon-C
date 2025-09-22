@@ -233,13 +233,16 @@ class SingleAgentAccessMgr(AgentAccessMgr):
                 actor_critic.load_state_dict(model_state_dict, strict=False)
             else:
                 print("loading state dict 1")
-                actor_critic.load_state_dict(
+                miss, unexpect = actor_critic.load_state_dict(
                         { 
                             k : v
                             # k[len("actor_critic.") :]: v
                             for k, v in pretrained_state["state_dict"].items()
-                        }
+                        },
+                        strict=False
                     )
+                print("misskey1:", miss)
+                print("unexpect1:", unexpect)
         elif self._config.habitat_baselines.rl.ddppo.pretrained_encoder:
             prefix = "actor_critic.net.visual_encoder."
             actor_critic.net.visual_encoder.load_state_dict(

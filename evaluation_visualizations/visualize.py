@@ -113,7 +113,7 @@ def filter_unsuccessful_episodes(input_csv, output_csv, success_column='success'
     print(f"Filtered episodes saved to {output_csv}")
 
 
-df = pd.read_csv('./evaluation falcon_hmap_1 hm3d checkpoints ckpt.10-1.pth.csv')
+df = pd.read_csv('./evaluation dtgc5_hmap hm3d checkpoints ckpt.7.pth.csv')
 # print_column_means(df)
 print_column_means_and_percentage(df)
 

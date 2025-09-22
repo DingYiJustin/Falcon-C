@@ -418,6 +418,8 @@ class FalconTrainer(BaseRLTrainer):
                     )
                 else:
                     act = act.item()
+                    if 'self_stop_success' in self.config.habitat.task.measurements.keys():
+                        act = act if act!= 0 else 1
                 self.envs.async_step_at(index_env, act)
 
         with g_timer.avg_time("trainer.obs_insert"):
