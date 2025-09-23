@@ -409,6 +409,15 @@ class FalconTrainer(BaseRLTrainer):
             ):
                 if hasattr(self._agent, '_agents') and self._agent._agents[0]._actor_critic.action_distribution_type == 'categorical':
                     act = act.numpy()
+                    if 'self_stop_success' in self.config.habitat.task.measurements.keys():
+                        # print('clip act to 1')
+                        # print('act before', act)
+                        act = np.clip(
+                            act,
+                            1,
+                            np.inf
+                        )
+                        # print('act after', act)
                 elif is_continuous_action_space(self._env_spec.action_space):
                     # Clipping actions to the specified limits
                     act = np.clip(
@@ -418,8 +427,6 @@ class FalconTrainer(BaseRLTrainer):
                     )
                 else:
                     act = act.item()
-                    if 'self_stop_success' in self.config.habitat.task.measurements.keys():
-                        act = act if act!= 0 else 1
                 self.envs.async_step_at(index_env, act)
 
         with g_timer.avg_time("trainer.obs_insert"):
