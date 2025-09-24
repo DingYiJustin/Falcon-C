@@ -186,7 +186,12 @@ class FALCONEvaluatorWithCSV(Evaluator):
             # sent in to env.step(), that will create CUDA contexts
             # in the subprocesses.
             if hasattr(agent, '_agents') and agent._agents[0]._actor_critic.action_distribution_type == 'categorical':
-                step_data = [a.numpy() for a in action_data.env_actions.cpu()]
+                step_data = [a.numpy() if 'self_stop_success' not in config.habitat.task.measurements.keys() else 
+                            np.clip(
+                                a.numpy(),
+                                1,
+                                np.inf
+                            ) for a in action_data.env_actions.cpu()]
             elif is_continuous_action_space(env_spec.action_space):
                 # Clipping actions to the specified limits
                 step_data = [

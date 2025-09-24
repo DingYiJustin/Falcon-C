@@ -684,6 +684,119 @@ class MinDTGCollisionAgentNavReward(Measure):
             social_nav_reward += self._collide_human_penalty
             
         self._metric = social_nav_reward
+        
+@registry.register_measure
+class HumanCollisionCheck(Measure):
+
+    cls_uuid: str = "human_collision_check"
+
+    def __init__(self, sim, config, *args, **kwargs):
+        self._sim = sim
+        self._config = config
+        self._ever_collide = False
+        super().__init__()
+
+    def _get_uuid(self, *args, **kwargs):
+        return self.cls_uuid
+
+    def reset_metric(self, *args, episode, task, observations, **kwargs):
+        task.measurements.check_measure_dependencies(
+            self.uuid, [DidMultiAgentsCollide._get_uuid()]
+        )
+        self._metric = 0.0
+        self._ever_collide = False
+
+    def update_metric(self, *args, episode, task, observations, **kwargs):
+        collid = task.measurements.measures[DidMultiAgentsCollide._get_uuid()].get_metric()
+        if collid or self._ever_collide:
+            self._metric = 1.0
+            self._ever_collide = True
+        else:
+            self._metric = 0.0
+
+@registry.register_measure
+class HumanCollisionCount(Measure):
+
+    cls_uuid: str = "human_collision_count"
+
+    def __init__(self, sim, config, *args, **kwargs):
+        self._sim = sim
+        self._config = config
+        super().__init__()
+
+    def _get_uuid(self, *args, **kwargs):
+        return self.cls_uuid
+
+    def reset_metric(self, *args, episode, task, observations, **kwargs):
+        task.measurements.check_measure_dependencies(
+            self.uuid, [DidMultiAgentsCollide._get_uuid()]
+        )
+        self._metric = 0.0
+
+    def update_metric(self, *args, episode, task, observations, **kwargs):
+        collid = task.measurements.measures[DidMultiAgentsCollide._get_uuid()].get_metric()
+        if collid:
+            self._metric += 1.0
+            
+            
+@registry.register_measure
+class DTGFCollisionAgentNavReward(Measure):
+    """
+    Reward that gives a continuous reward for the social navigation task.
+    """
+
+    cls_uuid: str = "dtgf_collsion_agent_nav_reward"
+        
+    # @staticmethod
+    # def _get_uuid(*args, **kwargs):
+    #     return MultiAgentNavReward.cls_uuid
+    def _get_uuid(self,*args, **kwargs):
+        return self.cls_uuid
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._metric = 0.0
+        config = kwargs["config"]
+        # Get the config and setup the hyperparameters
+        self._config = config
+        self._sim = kwargs["sim"]
+        
+        self._collide_human_penalty = -2.0        
+        self._human_nums = 0
+        self.first_coll = True
+
+    def reset_metric(self, *args, episode, task, observations, **kwargs):
+        if "human_num" in episode.info:
+            self._human_nums = min(episode.info['human_num'], self._sim.num_articulated_agents - 1)
+        else: 
+            self._human_nums = 0
+        self.first_coll = True
+        self._metric = 0.0
+        
+    
+    def update_metric(self, *args, episode, task, observations, **kwargs):
+
+        # Start social nav reward
+        social_nav_reward = 0.0
+
+        # Component 1: Goal distance reward
+        distance_to_goal_reward = task.measurements.measures[
+            DistanceToGoalReward.cls_uuid
+        ].get_metric()
+        social_nav_reward +=  distance_to_goal_reward  # Slightly reduced reward multiplier
+
+        # Component 2: Collision detection for two agents
+        did_agents_collide = task.measurements.measures[
+            DidMultiAgentsCollide._get_uuid()
+        ].get_metric()
+        if did_agents_collide:
+            # task.should_end = True
+            social_nav_reward += self._collide_human_penalty
+            if self.first_coll:
+                self.first_coll = False
+                social_nav_reward += -4.0
+            
+        self._metric = social_nav_reward
 
 @dataclass
 class MultiAgentNavReward(MeasurementConfig):
@@ -749,6 +862,55 @@ class SelfStopSuccess(Measure):
         else:
             self._metric = 0.0
 
+@registry.register_measure
+class TrueSuccess(Measure):
+    r"""Whether or not the agent succeeded at its task
+
+    This measure depends on DistanceToGoal measure.
+    """
+
+    cls_uuid: str = "true_success"
+
+    def __init__(
+        self, sim: Simulator, config: "DictConfig", *args: Any, **kwargs: Any
+    ):
+        self._sim = sim
+        self._config = config
+        self._success_distance = 0.2 #self._config.success_distance
+
+        super().__init__()
+
+    def _get_uuid(self, *args: Any, **kwargs: Any) -> str:
+        return self.cls_uuid
+
+    def reset_metric(self, episode, task, *args: Any, **kwargs: Any):
+        task.measurements.check_measure_dependencies(
+            self.uuid, [DistanceToGoal.cls_uuid]
+        )
+        task.measurements.check_measure_dependencies(
+            self.uuid, ['human_collision_check']
+        )
+        self.update_metric(episode=episode, task=task, *args, **kwargs)  # type: ignore
+
+    def update_metric(
+        self, episode, task: EmbodiedTask, *args: Any, **kwargs: Any
+    ):
+        # ep_success = task.measurements.measures[Success.cls_uuid].get_metric() 
+        distance_to_target = task.measurements.measures[
+            DistanceToGoal.cls_uuid
+        ].get_metric()
+        
+        human_collision_count = task.measurements.measures[
+            'human_collision_count'
+        ].get_metric()
+        
+        if (
+            distance_to_target < self._success_distance and human_collision_count < 0.5
+        ):
+            self._metric = 1.0
+        else:
+            self._metric = 0.0
+
 
 @dataclass
 class DidMultiAgentsCollideConfig(MeasurementConfig):
@@ -782,7 +944,14 @@ class DTGCollisionAgentNavReward(MeasurementConfig):
     """
     type: str = "DTGCollisionAgentNavReward"
     
-    collide_human_penalty: float = -20.0  
+    collide_human_penalty: float = -5.0  
+
+@dataclass
+class DTGFCollisionAgentNavReward(MeasurementConfig):
+    r"""
+    The reward for the multi agent navigation tasks.
+    """
+    type: str = "DTGFCollisionAgentNavReward"
 
 @dataclass
 class MinDTGCollisionAgentNavReward(MeasurementConfig):
@@ -814,7 +983,17 @@ class MinDistanceToGoalReward(MeasurementConfig):
     """
     type: str = "MinDistanceToGoalReward"
 
+@dataclass
+class HumanCollisionCheckMeasurementConfig(MeasurementConfig):
+    type: str = "HumanCollisionCheck"
+    
+@dataclass
+class HumanCollisionCountMeasurementConfig(MeasurementConfig):
+    type: str = "HumanCollisionCount"
 
+@dataclass
+class TrueSuccessMeasurementConfig(MeasurementConfig):
+    type: str = "TrueSuccess"
 
 cs = ConfigStore.instance()
 
@@ -869,6 +1048,13 @@ cs.store(
 )
 
 cs.store(
+    package="habitat.task.measurements.dtgf_collsion_agent_nav_reward",
+    group="habitat/task/measurements",
+    name="dtgf_collsion_agent_nav_reward",
+    node=DTGFCollisionAgentNavReward,
+)
+
+cs.store(
     package="habitat.task.measurements.self_stop_success",
     group="habitat/task/measurements",
     name="self_stop_success",
@@ -894,4 +1080,25 @@ cs.store(
     group="habitat/task/measurements",
     name="min_dtg_collsion_agent_nav_reward",
     node=MinDTGCollisionAgentNavReward,
+)
+
+cs.store(
+    package="habitat.task.measurements.human_collision_check",
+    group="habitat/task/measurements",
+    name="human_collision_check",
+    node=HumanCollisionCheckMeasurementConfig,
+)
+
+cs.store(
+    package="habitat.task.measurements.human_collision_count",
+    group="habitat/task/measurements",
+    name="human_collision_count",
+    node=HumanCollisionCountMeasurementConfig,
+)
+
+cs.store(
+    package="habitat.task.measurements.true_success",
+    group="habitat/task/measurements",
+    name="true_success",
+    node=TrueSuccessMeasurementConfig,
 )
