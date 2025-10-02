@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -p emergency_gpua40         # 指定GPU队列 i64m1tga40u
+#SBATCH -p i64m1tga40ue         # 指定GPU队列 i64m1tga40u
 #SBATCH -o output_%j.txt  # 指定作业标准输出文件，%j为作业号
 #SBATCH -e err_%j.txt    # 指定作业标准错误输出文件
 #SBATCH -n 1           # 指定CPU总核心数
@@ -24,8 +24,8 @@ TOTAL_GPU=1
 # set -x
 
 python -u -m habitat-baselines.habitat_baselines.run \
-    --config-name=social_nav_v2/dtgc_self_stop_hm3d_eval_with_csv.yaml \
-    > evaluation/dtgc5_hmap_self_stop/hm3d/eval-dtgcf2-ckpt24.log 2>&1
+    --config-name=social_nav_v2/dtgc_hmap_self_stop_hm3d_eval_with_csv.yaml \
+    > evaluation/dtgc5_hmap_self_stop/hm3d/eval-dtgcf-hmap-ckpt26.log 2>&1
 
 
 echo "FINISH"

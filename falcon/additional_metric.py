@@ -359,70 +359,70 @@ def merge_paths(paths):
     return merged_path
 
 
-@registry.register_measure
-class HumanFutureTrajectory(UsesArticulatedAgentInterface, Measure):
-    """
-    The measure for future prediction of social crowd navigation
-    """
+# @registry.register_measure
+# class HumanFutureTrajectory(UsesArticulatedAgentInterface, Measure):
+#     """
+#     The measure for future prediction of social crowd navigation
+#     """
 
-    cls_uuid: str = "human_future_trajectory"
+#     cls_uuid: str = "human_future_trajectory"
 
-    def __init__(self, *args, sim, **kwargs):
-        self._sim = sim
-        self.num_agents = sim.num_articulated_agents
-        self.target_dict = [[[0, 0, 0]] for _ in range(self.num_agents-1)]
-        self.path_dict = {}
-        super().__init__(*args, sim=sim, **kwargs)
+#     def __init__(self, *args, sim, **kwargs):
+#         self._sim = sim
+#         self.num_agents = sim.num_articulated_agents
+#         self.target_dict = [[[0, 0, 0]] for _ in range(self.num_agents-1)]
+#         self.path_dict = {}
+#         super().__init__(*args, sim=sim, **kwargs)
 
-    @staticmethod
-    def _get_uuid(*args, **kwargs):
-        return HumanFutureTrajectory.cls_uuid
+#     @staticmethod
+#     def _get_uuid(*args, **kwargs):
+#         return HumanFutureTrajectory.cls_uuid
 
-    def reset_metric(self, *args, episode, task, observations, **kwargs):
-        self.update_metric(
-            *args,
-            episode=episode,
-            task=task,
-            observations=observations,
-            **kwargs,
-        )
+#     def reset_metric(self, *args, episode, task, observations, **kwargs):
+#         self.update_metric(
+#             *args,
+#             episode=episode,
+#             task=task,
+#             observations=observations,
+#             **kwargs,
+#         )
 
-    def _path_to_point(self, point_a,point_b):
+#     def _path_to_point(self, point_a,point_b):
 
-        path = habitat_sim.ShortestPath()
-        path.requested_start = point_a 
-        path.requested_end = point_b
-        found_path = self._sim.pathfinder.find_path(path)
-        if not found_path:
-            return [point_a, point_b]
-        return path.points
+#         path = habitat_sim.ShortestPath()
+#         path.requested_start = point_a 
+#         path.requested_end = point_b
+#         found_path = self._sim.pathfinder.find_path(path)
+#         if not found_path:
+#             return [point_a, point_b]
+#         return path.points
 
-    def update_metric(self, *args, episode, task, observations, **kwargs):
-        for agent_idx, target in enumerate(self.target_dict):
-            path = []
+#     def update_metric(self, *args, episode, task, observations, **kwargs):
+#         for agent_idx, target in enumerate(self.target_dict):
+#             path = []
             
-            agent_pos = self._sim.get_agent_data(agent_idx+1).articulated_agent.base_pos
-            for i in range(-1,len(target)):
-                if i == -1:
-                    path_point = np.array(agent_pos)
-                else:
-                    path_point = target[i]
+#             agent_pos = self._sim.get_agent_data(agent_idx+1).articulated_agent.base_pos
+#             for i in range(-1,len(target)):
+#                 if i == -1:
+#                     path_point = np.array(agent_pos)
+#                 else:
+#                     path_point = target[i]
 
-                if i >= 0:
-                    temp_path = self._path_to_point(prev_point, path_point)
-                    path.append(temp_path)
+#                 if i >= 0:
+#                     temp_path = self._path_to_point(prev_point, path_point)
+#                     path.append(temp_path)
                 
-                prev_point = path_point
+#                 prev_point = path_point
 
-            if path == []:
-                self.path_dict[agent_idx + 1] = []
-            else:
-                temp_merged_path = merge_paths(path)
-                # output_length = min(5, len(temp_merged_path))
-                output_length = min(20, len(temp_merged_path))
-                self.path_dict[agent_idx + 1] = temp_merged_path[:output_length]
+#             if path == []:
+#                 self.path_dict[agent_idx + 1] = []
+#             else:
+#                 temp_merged_path = merge_paths(path)
+#                 # output_length = min(5, len(temp_merged_path))
+#                 output_length = min(20, len(temp_merged_path))
+#                 self.path_dict[agent_idx + 1] = temp_merged_path[:output_length]
 
-        self._metric = self.path_dict
+#         self._metric = self.path_dict
 
 @registry.register_measure
 class HumanFutureTrajectory(UsesArticulatedAgentInterface, Measure):
@@ -761,7 +761,7 @@ class DTGFCollisionAgentNavReward(Measure):
         self._config = config
         self._sim = kwargs["sim"]
         
-        self._collide_human_penalty = -2.0        
+        self._collide_human_penalty = -1.0 #-2.0        
         self._human_nums = 0
         self.first_coll = True
 
@@ -795,6 +795,62 @@ class DTGFCollisionAgentNavReward(Measure):
             if self.first_coll:
                 self.first_coll = False
                 social_nav_reward += -4.0
+            
+        self._metric = social_nav_reward
+
+
+@registry.register_measure
+class DTGOFCollisionAgentNavReward(Measure):
+    """
+    Reward that gives a continuous reward for the social navigation task.
+    """
+
+    cls_uuid: str = "dtgof_collsion_agent_nav_reward"
+        
+    # @staticmethod
+    # def _get_uuid(*args, **kwargs):
+    #     return MultiAgentNavReward.cls_uuid
+    def _get_uuid(self,*args, **kwargs):
+        return self.cls_uuid
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._metric = 0.0
+        config = kwargs["config"]
+        # Get the config and setup the hyperparameters
+        self._config = config
+        self._sim = kwargs["sim"]
+        
+        self._human_nums = 0
+        self.first_coll = True
+
+    def reset_metric(self, *args, episode, task, observations, **kwargs):
+        if "human_num" in episode.info:
+            self._human_nums = min(episode.info['human_num'], self._sim.num_articulated_agents - 1)
+        else: 
+            self._human_nums = 0
+        self.first_coll = True
+        self._metric = 0.0
+        
+    
+    def update_metric(self, *args, episode, task, observations, **kwargs):
+
+        # Start social nav reward
+        social_nav_reward = 0.0
+
+        # Component 1: Goal distance reward
+        distance_to_goal_reward = task.measurements.measures[
+            DistanceToGoalReward.cls_uuid
+        ].get_metric()
+        social_nav_reward +=  distance_to_goal_reward  # Slightly reduced reward multiplier
+
+        # Component 2: Collision detection for two agents
+        did_agents_collide = task.measurements.measures[
+            DidMultiAgentsCollide._get_uuid()
+        ].get_metric()
+        if did_agents_collide and self.first_coll:
+                self.first_coll = False
+                social_nav_reward += -24.0 #-10.0
             
         self._metric = social_nav_reward
 
@@ -954,6 +1010,13 @@ class DTGFCollisionAgentNavReward(MeasurementConfig):
     type: str = "DTGFCollisionAgentNavReward"
 
 @dataclass
+class DTGOFCollisionAgentNavReward(MeasurementConfig):
+    r"""
+    The reward for the multi agent navigation tasks.
+    """
+    type: str = "DTGOFCollisionAgentNavReward"
+
+@dataclass
 class MinDTGCollisionAgentNavReward(MeasurementConfig):
     r"""
     The reward for the multi agent navigation tasks.
@@ -1052,6 +1115,13 @@ cs.store(
     group="habitat/task/measurements",
     name="dtgf_collsion_agent_nav_reward",
     node=DTGFCollisionAgentNavReward,
+)
+
+cs.store(
+    package="habitat.task.measurements.dtgof_collsion_agent_nav_reward",
+    group="habitat/task/measurements",
+    name="dtgof_collsion_agent_nav_reward",
+    node=DTGOFCollisionAgentNavReward,
 )
 
 cs.store(

@@ -266,7 +266,7 @@ def observations_to_image(observation: Dict, info: Dict) -> np.ndarray:
             color = (0, 255, 0)  # Red in rgb format
 
             # Loop through each time step
-            for t in range(future_steps):
+            for t in range(1):#range(future_steps):
                 # Create a mask where humans are present (assuming > 0 indicates presence)
                 human_mask = obs_k[:, :, t] > 0  # Non-zero values indicate human presence
 

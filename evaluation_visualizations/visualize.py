@@ -113,11 +113,29 @@ def filter_unsuccessful_episodes(input_csv, output_csv, success_column='success'
     print(f"Filtered episodes saved to {output_csv}")
 
 
-df = pd.read_csv('./evaluation dtgc2_self_stop_final hm3d checkpoints ckpt.3.pth.csv')
+def output_failed_episodes_to_csv(dataframe, csv_filename):
+    """
+    This function filters episodes where true_success is not met and outputs them to a CSV file.
+
+    Parameters:
+    dataframe (pd.DataFrame): The DataFrame containing episode data with a 'true_success' column.
+    csv_filename (str): The name of the output CSV file.
+
+    Returns:
+    None
+    """
+    # Filter episodes where true_success is not met
+    failed_episodes = dataframe[dataframe['true_success'] != True]
+
+    # Output to CSV
+    failed_episodes.to_csv(csv_filename, index=False)
+
+df = pd.read_csv('./evaluation dtgcf_hmap_self_stop_fast_a40 hm3d checkpoints ckpt.26.pth.csv')
 # print_column_means(df)
 print_column_means_and_percentage(df)
 
-df2 = pd.read_csv('evaluation dtgc2_self_stop_final hm3d checkpoints ckpt.11.pth.csv')#'./pretrained_model falcon_noaux_25.pth.csv')
+df2 = pd.read_csv('evaluation dtgcf_hmap_self_stop_fast_a40 hm3d checkpoints ckpt.41.pth.csv')#'./pretrained_model falcon_noaux_25.pth.csv')
 compare_episode_data(df,df2)
 
-filter_unsuccessful_episodes('./evaluation falcon_hmap_1 hm3d checkpoints ckpt.10-1.pth.csv', 'to_get_video.csv')
+# filter_unsuccessful_episodes('./evaluation falcon_hmap_1 hm3d checkpoints ckpt.10-1.pth.csv', 'to_get_video.csv')
+output_failed_episodes_to_csv(df2, 'to_get_video.csv')
