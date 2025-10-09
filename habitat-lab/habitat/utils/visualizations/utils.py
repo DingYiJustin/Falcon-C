@@ -299,6 +299,10 @@ def observations_to_image(observation: Dict, info: Dict) -> np.ndarray:
                 # Create a mask where humans are present (assuming > 0 indicates presence)
                 mask = obs_k[:, :, t] > 0  # Non-zero values indicate human presence
                 visual_map[mask] = colors[t]  # Set the overlay color where humans are present
+            if 'agent_0_oracle_humanoid_future_trajectory_map' in observation.keys():
+                obs_a = observation['agent_0_oracle_humanoid_future_trajectory_map'].cpu().numpy()
+                mask = obs_a[:, :, 0] > 0
+                visual_map[mask] = (255,255,255) 
             render_obs_images.append(visual_map)
         elif len(observation[sensor_name].shape) > 1:
             obs_k = observation[sensor_name]

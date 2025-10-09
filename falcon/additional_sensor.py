@@ -684,6 +684,7 @@ class TopDownMapSensor(UsesArticulatedAgentInterface, Sensor):
                     
                     # Check if within bounds of the large map
                     if 0 <= large_row < self._top_down_map.shape[0] and 0 <= large_col < self._top_down_map.shape[1]:
+                        # future_map[self._top_down_map[large_row, large_col], i, j] = 1   
                         future_map[self._top_down_map[large_row, large_col], i, j] = 1   
             future_map = np.transpose(future_map, (1, 2, 0))
 
@@ -694,9 +695,10 @@ class TopDownMapSensor(UsesArticulatedAgentInterface, Sensor):
             camera_yaw = -camera_yaw
             
             center = (future_map.shape[0] // 2, future_map.shape[1] // 2)  # (width, height) for OpenCV
-            rotation_matrix = cv2.getRotationMatrix2D(center, np.degrees(camera_yaw), 1.0) 
+            rotation_matrix = cv2.getRotationMatrix2D(center, np.degrees(camera_yaw)+90, 1.0) 
             for i in range(3):
                 future_map[:,:,i] = cv2.warpAffine(future_map[:,:,i], rotation_matrix, (101, 101), flags=cv2.INTER_LINEAR)
+            future_map = future_map[:, ::-1,:]
             return future_map
         
         except Exception as e:
