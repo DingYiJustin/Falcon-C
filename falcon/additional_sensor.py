@@ -608,7 +608,7 @@ class TopDownMapSensor(UsesArticulatedAgentInterface, Sensor):
 
     @staticmethod
     def _get_uuid(*args, **kwargs):
-        return OracleHumanoidFutureTrajectoryMapSensor.cls_uuid
+        return TopDownMapSensor.cls_uuid
 
     @staticmethod
     def _get_sensor_type(*args, **kwargs):
@@ -639,23 +639,32 @@ class TopDownMapSensor(UsesArticulatedAgentInterface, Sensor):
         
         try:
             future_map = self._initialize_map(self)
+            agent_state = self._sim.get_agent_state()
+
+            rotation_world_start = quaternion_from_coeff(episode.start_rotation)
+            rotation_world_agent = agent_state.rotation
+            
+            camera_yaw = self._quat_to_xy_heading(
+                rotation_world_agent.inverse() * rotation_world_start
+            )[0] #- to rotate back
+            
             if self.current_episode_id != episode.episode_id or self.current_episode_scene_id != episode.scene_id:
                 self.current_episode_id = episode.episode_id
                 self.current_episode_scene_id = episode.scene_id
                 self.current_episode_init_yaw = camera_yaw
                 self._top_down_map = maps.get_topdown_map_from_sim(
                     self._sim,
-                    map_resolution=self._map_resolution,
-                    draw_border=self._config.draw_border,
+                    map_resolution=1024,#self._map_resolution,
+                    draw_border= True, #self._config.draw_border,
                     meters_per_pixel = 0.1
                 )
                 # print('self.current_episode_init_yaw', camera_yaw)
             # Initialize the map instead of the result list
             robot_pos = self._sim.get_agent_data(0).articulated_agent.base_pos
-            
+
             robot_pos = maps.to_grid(
-                robot_pos[0],
                 robot_pos[2],
+                robot_pos[0],
                 (self._top_down_map.shape[0], self._top_down_map.shape[1]),
                 sim=self._sim,
             ) #a_x, a_y 
@@ -674,25 +683,15 @@ class TopDownMapSensor(UsesArticulatedAgentInterface, Sensor):
                     large_col = start_col + j
                     
                     # Check if within bounds of the large map
-                    if 0 <= large_row < self._top_down_map[0] and 0 <= large_col < self._top_down_map[1]:
-                        future_map[self._top_down_map[large_row, large_col], i, j] = 1
-                        
-                    
+                    if 0 <= large_row < self._top_down_map.shape[0] and 0 <= large_col < self._top_down_map.shape[1]:
+                        future_map[self._top_down_map[large_row, large_col], i, j] = 1   
             future_map = np.transpose(future_map, (1, 2, 0))
-            
-            agent_state = self._sim.get_agent_state()
 
-            rotation_world_start = quaternion_from_coeff(episode.start_rotation)
-            rotation_world_agent = agent_state.rotation
             
-            camera_yaw = self._quat_to_xy_heading(
-                rotation_world_agent.inverse() * rotation_world_start
-            )[0] #- to rotate back
-            
-            
-            
+            # camera_yaw -= self.current_episode_init_yaw
+            # # print('camera_yaw degree ', np.degrees(camera_yaw))
             camera_yaw -= self.current_episode_init_yaw
-            # print('camera_yaw degree ', np.degrees(camera_yaw))
+            camera_yaw = -camera_yaw
             
             center = (future_map.shape[0] // 2, future_map.shape[1] // 2)  # (width, height) for OpenCV
             rotation_matrix = cv2.getRotationMatrix2D(center, np.degrees(camera_yaw), 1.0) 

@@ -280,6 +280,26 @@ def observations_to_image(observation: Dict, info: Dict) -> np.ndarray:
                 # overlay = np.zeros((height, width, 3), dtype=np.uint8)
                 visual_map[human_mask] = color  # Set the overlay color where humans are present
             render_obs_images.append(visual_map)
+        elif 'td_map' in sensor_name:
+            obs_k = observation[sensor_name].cpu().numpy()
+            height, width, future_steps = obs_k.shape
+    
+            # Create a 3-channel (RGB) image initialized to black
+            # visual_map = np.ones((height, width, 3), dtype=np.uint8)*255
+            visual_map = np.zeros((height, width, 3), dtype=np.uint8)
+            visual_map[:,:, 1] = 50
+            visual_map[:,:, 0] = 50
+            visual_map[:,:, 2] = 50
+            
+            # Define the color for human representations (e.g., red)
+            colors = [(255,0,0),(0,255,0),(0,0,255) ] # Red in rgb format
+
+            # Loop through each time step
+            for t in range(3):#range(future_steps):
+                # Create a mask where humans are present (assuming > 0 indicates presence)
+                mask = obs_k[:, :, t] > 0  # Non-zero values indicate human presence
+                visual_map[mask] = colors[t]  # Set the overlay color where humans are present
+            render_obs_images.append(visual_map)
         elif len(observation[sensor_name].shape) > 1:
             obs_k = observation[sensor_name]
             if not isinstance(obs_k, np.ndarray):
