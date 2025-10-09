@@ -128,3 +128,5 @@ data/
 output_*.txt
 err_*.txt
 pretrained_model
+
+cifar_data/

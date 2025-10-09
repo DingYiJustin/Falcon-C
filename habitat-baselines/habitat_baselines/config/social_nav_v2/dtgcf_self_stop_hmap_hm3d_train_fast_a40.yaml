@@ -102,7 +102,7 @@ habitat_baselines:
   tensorboard_dir: "evaluation/dtgcf_hmap_self_stop_fast_a40/hm3d/tb"
   video_dir: "evaluation/dtgcf_hmap_self_stop_fast_a40/hm3d/video"
   test_episode_count: -1
-  num_environments: 38 #8
+  num_environments: 30 #8
   checkpoint_folder: "evaluation/dtgcf_hmap_self_stop_fast_a40/hm3d/checkpoints" # save_dir for training
   num_updates: -1
   total_num_steps: 1e8 #15000000 # exact steps 12560368

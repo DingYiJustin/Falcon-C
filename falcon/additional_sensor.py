@@ -39,6 +39,9 @@ from depth_camera_filtering import filter_depth
 
 import cv2
 
+from habitat.utils.visualizations import fog_of_war, maps
+
+
 @dataclass
 class OracleShortestPathSensorConfig(LabSensorConfig):
     
@@ -80,6 +83,10 @@ class OracleHumanoidFutureTrajectorySensorConfig(LabSensorConfig):
 class OracleHumanoidFutureTrajectoryMapSensorConfig(LabSensorConfig):
     type: str = "OracleHumanoidFutureTrajectoryMapSensor"
     future_step: int = 5
+    
+@dataclass
+class TopDownMapSensorConfig(LabSensorConfig):
+    type: str = "TopDownMapSensor"
 
 @registry.register_sensor(name="OracleShortestPathSensor")
 class OracleShortestPathSensor(Sensor):
@@ -576,6 +583,128 @@ class OracleHumanoidFutureTrajectoryMapSensor(UsesArticulatedAgentInterface, Sen
             return np.zeros((101, 101, self.future_step), dtype=np.float32)
             
 
+@registry.register_sensor
+class TopDownMapSensor(UsesArticulatedAgentInterface, Sensor):
+    """
+    Assumed Oracle Humanoid Future Trajectory Sensor.
+    """
+
+    cls_uuid: str = "td_map"
+
+    def __init__(self, *args, sim, task, **kwargs):
+        self._sim = sim
+        self._task = task
+        # self.max_human_num = 6
+        self.human_num = task._human_num
+        self.result_list = None  
+        
+        self.current_episode_id = None
+        self.current_episode_scene_id = None
+        self.current_episode_init_yaw = None
+        
+        self._top_down_map = None
+
+        super().__init__(*args, task=task, **kwargs)
+
+    @staticmethod
+    def _get_uuid(*args, **kwargs):
+        return OracleHumanoidFutureTrajectoryMapSensor.cls_uuid
+
+    @staticmethod
+    def _get_sensor_type(*args, **kwargs):
+        return SensorTypes.TENSOR
+
+    def _get_observation_space(self, *args, config, **kwargs):
+        return spaces.Box(
+            shape=(101,101, 3),
+            low=np.finfo(np.float32).min,
+            high=np.finfo(np.float32).max,
+            dtype=np.float32,
+        )
+
+    @staticmethod
+    def _initialize_map(self):
+        """Initialize a zero map with the desired shape."""
+        return np.zeros((3, 101, 101), dtype=np.float32)
+    
+    def _quat_to_xy_heading(self, quat):
+        direction_vector = np.array([0, 0, -1])
+
+        heading_vector = quaternion_rotate_vector(quat, direction_vector)
+
+        phi = cartesian_to_polar(-heading_vector[2], heading_vector[0])[1]
+        return np.array([phi], dtype=np.float32)
+
+    def get_observation(self, task, observations, episode, *args: Any, **kwargs: Any):
+        
+        try:
+            future_map = self._initialize_map(self)
+            if self.current_episode_id != episode.episode_id or self.current_episode_scene_id != episode.scene_id:
+                self.current_episode_id = episode.episode_id
+                self.current_episode_scene_id = episode.scene_id
+                self.current_episode_init_yaw = camera_yaw
+                self._top_down_map = maps.get_topdown_map_from_sim(
+                    self._sim,
+                    map_resolution=self._map_resolution,
+                    draw_border=self._config.draw_border,
+                    meters_per_pixel = 0.1
+                )
+                # print('self.current_episode_init_yaw', camera_yaw)
+            # Initialize the map instead of the result list
+            robot_pos = self._sim.get_agent_data(0).articulated_agent.base_pos
+            
+            robot_pos = maps.to_grid(
+                robot_pos[0],
+                robot_pos[2],
+                (self._top_down_map.shape[0], self._top_down_map.shape[1]),
+                sim=self._sim,
+            ) #a_x, a_y 
+            
+            # Centering the robot position at the center of the map
+            robot_pixel_x = 50  # Center x in a 101x101 map
+            robot_pixel_y = 50  # Center y in a 101x101 map
+            
+            start_row = robot_pos[0] - robot_pixel_x
+            start_col = robot_pos[1] - robot_pixel_y
+
+            # Step 5: Fill the smaller map with the relevant portion of the larger map
+            for i in range(101):
+                for j in range(101):
+                    large_row = start_row + i
+                    large_col = start_col + j
+                    
+                    # Check if within bounds of the large map
+                    if 0 <= large_row < self._top_down_map[0] and 0 <= large_col < self._top_down_map[1]:
+                        future_map[self._top_down_map[large_row, large_col], i, j] = 1
+                        
+                    
+            future_map = np.transpose(future_map, (1, 2, 0))
+            
+            agent_state = self._sim.get_agent_state()
+
+            rotation_world_start = quaternion_from_coeff(episode.start_rotation)
+            rotation_world_agent = agent_state.rotation
+            
+            camera_yaw = self._quat_to_xy_heading(
+                rotation_world_agent.inverse() * rotation_world_start
+            )[0] #- to rotate back
+            
+            
+            
+            camera_yaw -= self.current_episode_init_yaw
+            # print('camera_yaw degree ', np.degrees(camera_yaw))
+            
+            center = (future_map.shape[0] // 2, future_map.shape[1] // 2)  # (width, height) for OpenCV
+            rotation_matrix = cv2.getRotationMatrix2D(center, np.degrees(camera_yaw), 1.0) 
+            for i in range(3):
+                future_map[:,:,i] = cv2.warpAffine(future_map[:,:,i], rotation_matrix, (101, 101), flags=cv2.INTER_LINEAR)
+            return future_map
+        
+        except Exception as e:
+            print("Top Down Map Sensor Exception", e)
+            return np.zeros((101, 101, 3), dtype=np.float32)
+
+
 cs = ConfigStore.instance()
 
 cs.store(
@@ -625,4 +754,10 @@ cs.store(
     group="habitat/task/lab_sensors",
     name="oracle_humanoid_future_trajectory_map",
     node=OracleHumanoidFutureTrajectoryMapSensorConfig,
+)
+cs.store(
+    package="habitat.task.lab_sensors.td_map",
+    group="habitat/task/lab_sensors",
+    name="td_map",
+    node=TopDownMapSensorConfig,
 )
