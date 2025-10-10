@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH -p emergency_gpu         # 指定GPU队列 i64m1tga40u
+#SBATCH -p debug         # 指定GPU队列 i64m1tga40u
 #SBATCH -o output_%j.txt  # 指定作业标准输出文件，%j为作业号
 #SBATCH -e err_%j.txt    # 指定作业标准错误输出文件
-#SBATCH -n 1           # 指定CPU总核心数
+#SBATCH -n 16           # 指定CPU总核心数
 #SBATCH --gres=gpu:1    # 指定GPU卡数
-#SBATCH --time=08:58:00 
+##SBATCH --time=08:58:00 
 
 # Copyright (c) Meta Platforms, Inc. and its affiliates.
 # This source code is licensed under the MIT license found in the
@@ -22,11 +22,13 @@ TOTAL_GPU=1
 # TOTAL_CPU_CORES=$((CPU_CORES_PER_GPU * TOTAL_GPU))
 
 # set -x
-
-python -u -m habitat-baselines.habitat_baselines.run \
-    --config-name=social_nav_v2/dtgc_self_stop_hm3d_eval_with_csv.yaml \
-    > evaluation/dtgc5_hmap_self_stop/hm3d/eval-dtgcf-ckpt40.log 2>&1
-
+python -u -m torch.distributed.launch \
+    --master_port 20200 \
+    --use_env \
+    --nproc_per_node $TOTAL_GPU \
+    habitat-baselines/habitat_baselines/run.py \
+    --config-name=social_nav_v2/dtgcf_self_stop_htdmap_hm3d_train_fast_a40.yaml \
+    > evaluation/dtgcf_htdmap_self_stop_fast_a40/hm3d/train.log 2>&1
 
 echo "FINISH"
 # OMP_NUM_THREADS=$CPU_CORES_PER_GPU \
