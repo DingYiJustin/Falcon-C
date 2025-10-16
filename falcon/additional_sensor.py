@@ -1056,17 +1056,17 @@ class TopDownMapWithHumanSensor(UsesArticulatedAgentInterface, Sensor):
 
     def draw_trajectory(self, occupancy_map,trajectory, index_map):
         position = self.center_position
-        realworld_x, realworld_y = maps.from_grid(
-            index_map[position[0],position[1]][0],
-            index_map[position[0],position[1]][1],
-            (self._top_down_map.shape[0], self._top_down_map.shape[1]),
-            sim=self._sim,
-        )
-        distance_to_target = self._sim.geodesic_distance(
-                    [realworld_x,self._sim.get_agent_state(0).position[1],realworld_y],
-                    [goal.position for goal in self.episode.goals],
-                    self.episode,
-                )
+        # realworld_x, realworld_y = maps.from_grid(
+        #     index_map[position[0],position[1]][0],
+        #     index_map[position[0],position[1]][1],
+        #     (self._top_down_map.shape[0], self._top_down_map.shape[1]),
+        #     sim=self._sim,
+        # )
+        # distance_to_target = self._sim.geodesic_distance(
+        #             [realworld_x,self._sim.get_agent_state(0).position[1],realworld_y],
+        #             [goal.position for goal in self.episode.goals],
+        #             self.episode,
+        #         )
         angle = self.agent_angle
         previous_position = position
         precise_position = position
@@ -1079,26 +1079,27 @@ class TopDownMapWithHumanSensor(UsesArticulatedAgentInterface, Sensor):
                 cv2.line(map_img, previous_position, position, 1, self.agent_diameter_pixels)
             # Draw the agent's position for this step
             cv2.circle(map_img, position, self.agent_radius_pixels, 1, -1)
-            exists_overlap = np.any(np.logical_and(map_img == 1, occupancy_map[:,:,step+1] == 1))
+            exists_overlap = np.any(np.logical_and(map_img == 1, occupancy_map[:,:,step+1] > 0))
             if exists_overlap:
                 return -100
             previous_position = position
             
-        realworld_x, realworld_y = maps.from_grid(
-            index_map[position[0],position[1]][0],
-            index_map[position[0],position[1]][1],
-            (self._top_down_map.shape[0], self._top_down_map.shape[1]),
-            sim=self._sim,
-        )
-        distance_to_target1 = self._sim.geodesic_distance(
-                    [realworld_x,self._sim.get_agent_state(0).position[1],realworld_y],
-                    [goal.position for goal in self.episode.goals],
-                    self.episode,
-                )
-        if distance_to_target1>1000 or distance_to_target>1000:
-            return 0
+        # realworld_x, realworld_y = maps.from_grid(
+        #     index_map[position[0],position[1]][0],
+        #     index_map[position[0],position[1]][1],
+        #     (self._top_down_map.shape[0], self._top_down_map.shape[1]),
+        #     sim=self._sim,
+        # )
+        # distance_to_target1 = self._sim.geodesic_distance(
+        #             [realworld_x,self._sim.get_agent_state(0).position[1],realworld_y],
+        #             [goal.position for goal in self.episode.goals],
+        #             self.episode,
+        #         )
+        # if distance_to_target1>1000 or distance_to_target>1000:
+        #     return 0
         # logger.info("distance_to_target1, distance_to_target, ", distance_to_target1, distance_to_target, distance_to_target1 - distance_to_target)
-        return distance_to_target1 - distance_to_target
+        return 0
+        # return distance_to_target1 - distance_to_target
 
     def get_observation(self, task, observations, episode, *args: Any, **kwargs: Any):
         
