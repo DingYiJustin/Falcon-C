@@ -797,6 +797,7 @@ class TopDownMapWithTrajectorySensor(UsesArticulatedAgentInterface, Sensor):
         return False
 
     def move_agent(self,occupancy_map , position, angle, action):
+        precise_x, precise_y = position
         x, y = position
         if action == 'left':
             angle += self.angle_step_radians
@@ -804,39 +805,44 @@ class TopDownMapWithTrajectorySensor(UsesArticulatedAgentInterface, Sensor):
             angle -= self.angle_step_radians
         elif action == 'forward':
             # Calculate potential new position
-            new_x = int(x + self.step_distance_pixels * math.cos(angle))
-            new_y = int(y - self.step_distance_pixels * math.sin(angle))
+            precise_x = precise_x + self.step_distance_pixels * math.cos(angle)
+            precise_y = precise_y - self.step_distance_pixels * math.sin(angle)
+            new_x = round(precise_x)
+            new_y = round(precise_y)
+            x, y = new_x, new_y
             
             # Check for collision
-            if not self.is_collision((new_x, new_y), occupancy_map, self.agent_radius_pixels):
-                x, y = new_x, new_y
-            else:
-                # Stay close to the obstacle; calculate the closest valid position
-                last_valid_position = (x, y) #自己加的
-                i = 0
-                while not self.is_collision((x, y), occupancy_map, self.agent_radius_pixels) and i<25:
-                    last_valid_position = (x, y)
-                    x = int(x + 1/120 * math.cos(angle))
-                    y = int(y - 1/120 *math.sin(angle))
-                    i+=1
-                x, y = last_valid_position
+            # if not self.is_collision((new_x, new_y), occupancy_map, self.agent_radius_pixels):
+            #     x, y = new_x, new_y
+            # else:
+            #     # Stay close to the obstacle; calculate the closest valid position
+            #     last_valid_position = (x, y) #自己加的
+            #     i = 0
+            #     while not self.is_collision((x, y), occupancy_map, self.agent_radius_pixels) and i<25:
+            #         last_valid_position = (x, y)
+            #         x = int(x + 1/120 * math.cos(angle))
+            #         y = int(y - 1/120 *math.sin(angle))
+            #         i+=1
+            #     x, y = last_valid_position
 
-        return (x, y), angle
+        return (x, y), (precise_x, precise_y ), angle
 
     def draw_trajectory(self, map_img, occupancy_map,trajectory, step_colors):
         position = self.center_position
         angle = self.agent_angle
         previous_position = position
-        
+        precise_position = position
         
         for step, action in enumerate(trajectory):
-            position, angle = self.move_agent(occupancy_map, position, angle, action)
+            position,precise_position , angle = self.move_agent(occupancy_map, precise_position, angle, action)
             # Draw the path from the previous position to the current position with a thickness equal to the agent's diameter
             if position != previous_position:
                 cv2.line(map_img, previous_position, position, step_colors[step], self.agent_diameter_pixels)
             # Draw the agent's position for this step
             cv2.circle(map_img, position, self.agent_radius_pixels, step_colors[step], -1)
             previous_position = position
+            # print('angle end[i]', angle)
+        # logger.info('angle start', self.agent_angle,'angle end', angle,'math.cos(angle)', math.cos(angle), 'math.cos(self.agent_angle)', math.cos(self.agent_angle) ,'math.sin(angle)',math.sin(angle), 'math.sin(self.agent_angle)', math.sin(self.agent_angle) ,  position, int(position[0] + self.step_distance_pixels * math.cos(angle)), int(position[1] - self.step_distance_pixels * math.sin(angle)))
 
     def get_observation(self, task, observations, episode, *args: Any, **kwargs: Any):
         
@@ -910,8 +916,10 @@ class TopDownMapWithTrajectorySensor(UsesArticulatedAgentInterface, Sensor):
             future_map = future_map[:, ::-1,:]
             
             color_map = cv2.cvtColor(future_map * 255, cv2.COLOR_GRAY2BGR)
-            trajectories = [(a1, a2, a3, a4, a5) for a1 in self.actions for a2 in self.actions for a3 in self.actions 
-                    for a4 in self.actions for a5 in self.actions] # for a6 in self.actions for a7 in self.actions for a8 in self.actions]
+            
+            trajectories = [('left','left','left', 'forward','forward')]
+            # trajectories = [(a1, a2, a3, a4, a5) for a1 in self.actions for a2 in self.actions for a3 in self.actions 
+            #         for a4 in self.actions for a5 in self.actions] # for a6 in self.actions for a7 in self.actions for a8 in self.actions]
             step_colors = [
                 (255, 0, 0),   # Red
                 (0, 255, 0),   # Green
@@ -1016,6 +1024,7 @@ class TopDownMapWithHumanSensor(UsesArticulatedAgentInterface, Sensor):
         return False
 
     def move_agent(self,occupancy_map , position, angle, action):
+        precise_x, precise_y = position
         x, y = position
         if action == 'left':
             angle += self.angle_step_radians
@@ -1023,24 +1032,27 @@ class TopDownMapWithHumanSensor(UsesArticulatedAgentInterface, Sensor):
             angle -= self.angle_step_radians
         elif action == 'forward':
             # Calculate potential new position
-            new_x = int(x + self.step_distance_pixels * math.cos(angle))
-            new_y = int(y - self.step_distance_pixels * math.sin(angle))
+            precise_x = precise_x + self.step_distance_pixels * math.cos(angle)
+            precise_y = precise_y - self.step_distance_pixels * math.sin(angle)
+            new_x = round(precise_x)
+            new_y = round(precise_y)
             
+            x, y = new_x, new_y
             # Check for collision
-            if not self.is_collision((new_x, new_y), occupancy_map, self.agent_radius_pixels):
-                x, y = new_x, new_y
-            else:
-                # Stay close to the obstacle; calculate the closest valid position
-                last_valid_position = (x, y) #自己加的
-                i = 0
-                while not self.is_collision((x, y), occupancy_map, self.agent_radius_pixels) and i<25:
-                    last_valid_position = (x, y)
-                    x = int(x + 1/120 * math.cos(angle))
-                    y = int(y - 1/120 *math.sin(angle))
-                    i+=1
-                x, y = last_valid_position
+            # if not self.is_collision((new_x, new_y), occupancy_map, self.agent_radius_pixels):
+            #     x, y = new_x, new_y
+            # else:
+            #     # Stay close to the obstacle; calculate the closest valid position
+            #     last_valid_position = (x, y) #自己加的
+            #     i = 0
+            #     while not self.is_collision((x, y), occupancy_map, self.agent_radius_pixels) and i<25:
+            #         last_valid_position = (x, y)
+            #         x = int(x + 1/120 * math.cos(angle))
+            #         y = int(y - 1/120 *math.sin(angle))
+            #         i+=1
+            #     x, y = last_valid_position
 
-        return (x, y), angle
+        return (x, y),(precise_x, precise_y ), angle
 
     def draw_trajectory(self, occupancy_map,trajectory, index_map):
         position = self.center_position
@@ -1051,17 +1063,17 @@ class TopDownMapWithHumanSensor(UsesArticulatedAgentInterface, Sensor):
             sim=self._sim,
         )
         distance_to_target = self._sim.geodesic_distance(
-                    [realworld_x,self._sim.get_agent_data(0).articulated_agent.base_pos[1],realworld_y],
+                    [realworld_x,self._sim.get_agent_state(0).position[1],realworld_y],
                     [goal.position for goal in self.episode.goals],
                     self.episode,
                 )
         angle = self.agent_angle
         previous_position = position
-        
+        precise_position = position
         
         for step, action in enumerate(trajectory):
             map_img = np.zeros((101, 101), dtype=np.float32)
-            position, angle = self.move_agent(occupancy_map, position, angle, action)
+            position, precise_position, angle = self.move_agent(occupancy_map, precise_position, angle, action)
             # Draw the path from the previous position to the current position with a thickness equal to the agent's diameter
             if position != previous_position:
                 cv2.line(map_img, previous_position, position, 1, self.agent_diameter_pixels)
@@ -1079,7 +1091,7 @@ class TopDownMapWithHumanSensor(UsesArticulatedAgentInterface, Sensor):
             sim=self._sim,
         )
         distance_to_target1 = self._sim.geodesic_distance(
-                    [realworld_x,self._sim.get_agent_data(0).articulated_agent.base_pos[1],realworld_y],
+                    [realworld_x,self._sim.get_agent_state(0).position[1],realworld_y],
                     [goal.position for goal in self.episode.goals],
                     self.episode,
                 )
@@ -1164,7 +1176,8 @@ class TopDownMapWithHumanSensor(UsesArticulatedAgentInterface, Sensor):
             #     return np.transpose(future_map, (1, 2, 0))
 
             # Get robot position
-            robot_pos = np.array(self._sim.get_agent_data(0).articulated_agent.base_pos)[[0, 2]]
+            # robot_pos = np.array(self._sim.get_agent_data(0).articulated_agent.base_pos)[[0, 2]]
+            robot_pos = np.array(self._sim.get_agent_state(0).position)[[0, 2]]
 
             if human_future_trajectory is not None:
                 for key, trajectories in human_future_trajectory.items():
@@ -1209,9 +1222,11 @@ class TopDownMapWithHumanSensor(UsesArticulatedAgentInterface, Sensor):
             index_map[:, :,0] = index_map[:, ::-1,0]
             index_map[:, :,1]  = index_map[:, ::-1,1]
             
-            trajectories = [(a1, a2, a3, a4, a5) for a1 in self.actions for a2 in self.actions for a3 in self.actions 
-                    for a4 in self.actions for a5 in self.actions] # for a6 in self.actions for a7 in self.actions for a8 in self.actions]
-
+            
+            # trajectories = [(a1, a2, a3, a4, a5) for a1 in self.actions for a2 in self.actions for a3 in self.actions 
+            #         for a4 in self.actions for a5 in self.actions] # for a6 in self.actions for a7 in self.actions for a8 in self.actions]
+            trajectories = []
+            
             traj_costs = np.zeros((3**self.future_step,))
             for i, trajectory in enumerate(trajectories):
                 
