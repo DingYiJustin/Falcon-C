@@ -22,11 +22,9 @@ TOTAL_GPU=1
 # TOTAL_CPU_CORES=$((CPU_CORES_PER_GPU * TOTAL_GPU))
 
 # set -x
-
 python -u -m habitat-baselines.habitat_baselines.run \
-    --config-name=social_nav_v2/dtgc_hmap_self_stop_hm3d_eval_with_csv.yaml \
-    > evaluation/dtgc5_hmap_self_stop/hm3d/eval-dtgcf-ckpt56.log 2>&1
-
+    --config-name=social_nav_v2/dtgcf_self_stop_htdmap_hm3d_train_fast_a40_eval.yaml \
+    > evaluation/dtgc5_hmap_self_stop/hm3d/eval-dtgcf-htdmap-ckpt16-withoutcsv.log 2>&1
 
 echo "FINISH"
 # OMP_NUM_THREADS=$CPU_CORES_PER_GPU \

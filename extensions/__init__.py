@@ -55,6 +55,10 @@ from .orcale_resnet_policy_with_map_inject_test import (
 from .orcale_resnet_policy_with_htdmap_inject import (
     PointNavResNetPolicyWithHTDMapInject
 )
+
+from .mpc_map_policy import (
+    MapMPCPolicy
+)
 # from .object_detection import YOLOv7Client
 # from .sam import mobile_sam_model
 # from .sam import MobileSAMClient

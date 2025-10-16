@@ -101,11 +101,11 @@ habitat_baselines:
   verbose: True
   trainer_name: "falcon_trainer" ## original ppo works for self._agent, but we need to train self._agent._agents[0]
   torch_gpu_id: 0
-  tensorboard_dir: "evaluation/dtgcf_htdmap_self_stop_fast_a40/hm3d/tb"
-  video_dir: "evaluation/dtgcf_htdmap_self_stop_fast_a40/hm3d/video"
+  tensorboard_dir: "evaluation/dtgcf_htdmap_self_stop_fast_a40_debug/hm3d/tb"
+  video_dir: "evaluation/dtgcf_htdmap_self_stop_fast_a40_debug/hm3d/video"
   test_episode_count: -1
   num_environments: 30 #8
-  checkpoint_folder: "evaluation/dtgcf_htdmap_self_stop_fast_a40/hm3d/checkpoints" # save_dir for training
+  checkpoint_folder: "evaluation/dtgcf_htdmap_self_stop_fast_a40_debug/hm3d/checkpoints" # save_dir for training
   num_updates: -1
   total_num_steps: 1e8 #15000000 # exact steps 12560368
   log_interval: 10

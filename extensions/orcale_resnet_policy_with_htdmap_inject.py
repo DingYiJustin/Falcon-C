@@ -874,9 +874,12 @@ class PointNavResNetWithHTDMapInject(Net):
             )
 
         # print("observations.keys", observations.keys())
-        if 'oracle_humanoid_future_trajectory_map' and 'td_map' in observations:
+        if 'oracle_humanoid_future_trajectory_map' in observations.keys() and 'td_map' in observations.keys():
             map_input = torch.cat((observations["oracle_humanoid_future_trajectory_map"], observations["td_map"]), dim=-1)
-            # print('map input')
+            # print('map input', torch.max(map_input), len(torch.unique(observations["td_map"])), len(torch.unique(observations["oracle_humanoid_future_trajectory_map"])), torch.unique(observations["oracle_humanoid_future_trajectory_map"]))
+        elif 'td_map' in observations:
+            map_input = torch.cat((torch.zeros((prev_actions.shape[0], 101,101, 5), device=prev_actions.device), observations["td_map"]), dim=-1)
+            # print('tdmap input', torch.max(map_input), torch.unique(observations["td_map"]))
         else:
             map_input = torch.zeros((prev_actions.shape[0], 101,101, self.future_step), device=prev_actions.device)
             # print('generated map input')

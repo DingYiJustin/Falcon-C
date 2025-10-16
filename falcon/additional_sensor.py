@@ -9,7 +9,8 @@ import math
 import numpy as np
 from gym import spaces
 
-from habitat.core.logging import logger
+# from habitat.core.logging import logger
+from habitat import VectorEnv, logger
 from habitat.core.registry import registry
 from habitat.core.simulator import (
     AgentState,
@@ -87,6 +88,16 @@ class OracleHumanoidFutureTrajectoryMapSensorConfig(LabSensorConfig):
 @dataclass
 class TopDownMapSensorConfig(LabSensorConfig):
     type: str = "TopDownMapSensor"
+    
+@dataclass
+class TopDownMapWithTrajectorySensorConfig(LabSensorConfig):
+    type: str = "TopDownMapWithTrajectorySensor"
+
+@dataclass
+class TopDownMapWithHumanSensorConfig(LabSensorConfig):
+    type: str = "TopDownMapWithHumanSensor"
+    future_step: int = 5
+
 
 @registry.register_sensor(name="OracleShortestPathSensor")
 class OracleShortestPathSensor(Sensor):
@@ -595,7 +606,7 @@ class TopDownMapSensor(UsesArticulatedAgentInterface, Sensor):
         self._sim = sim
         self._task = task
         # self.max_human_num = 6
-        self.human_num = task._human_num
+        # self.human_num = task._human_num
         self.result_list = None  
         
         self.current_episode_id = None
@@ -643,7 +654,7 @@ class TopDownMapSensor(UsesArticulatedAgentInterface, Sensor):
 
             rotation_world_start = quaternion_from_coeff(episode.start_rotation)
             rotation_world_agent = agent_state.rotation
-            
+
             camera_yaw = self._quat_to_xy_heading(
                 rotation_world_agent.inverse() * rotation_world_start
             )[0] #- to rotate back
@@ -660,7 +671,8 @@ class TopDownMapSensor(UsesArticulatedAgentInterface, Sensor):
                 )
                 # print('self.current_episode_init_yaw', camera_yaw)
             # Initialize the map instead of the result list
-            robot_pos = self._sim.get_agent_data(0).articulated_agent.base_pos
+            # robot_pos = self._sim.get_agent_data(0).articulated_agent.base_pos
+            robot_pos = self._sim.get_agent_state(0).position
 
             robot_pos = maps.to_grid(
                 robot_pos[2],
@@ -672,7 +684,7 @@ class TopDownMapSensor(UsesArticulatedAgentInterface, Sensor):
             # Centering the robot position at the center of the map
             robot_pixel_x = 50  # Center x in a 101x101 map
             robot_pixel_y = 50  # Center y in a 101x101 map
-            
+
             start_row = robot_pos[0] - robot_pixel_x
             start_col = robot_pos[1] - robot_pixel_y
 
@@ -688,7 +700,7 @@ class TopDownMapSensor(UsesArticulatedAgentInterface, Sensor):
                         future_map[self._top_down_map[large_row, large_col], i, j] = 1   
             future_map = np.transpose(future_map, (1, 2, 0))
 
-            
+
             # camera_yaw -= self.current_episode_init_yaw
             # # print('camera_yaw degree ', np.degrees(camera_yaw))
             camera_yaw -= self.current_episode_init_yaw
@@ -699,11 +711,518 @@ class TopDownMapSensor(UsesArticulatedAgentInterface, Sensor):
             for i in range(3):
                 future_map[:,:,i] = cv2.warpAffine(future_map[:,:,i], rotation_matrix, (101, 101), flags=cv2.INTER_LINEAR)
             future_map = future_map[:, ::-1,:]
+
             return future_map
         
         except Exception as e:
-            print("Top Down Map Sensor Exception", e)
-            return np.zeros((101, 101, 3), dtype=np.float32)
+            logger.info("Top Down Map Sensor Exception", e)
+            return np.zeros((101, 101, 5), dtype=np.float32)
+        
+
+@registry.register_sensor
+class TopDownMapWithTrajectorySensor(UsesArticulatedAgentInterface, Sensor):
+    """
+    Assumed Oracle Humanoid Future Trajectory Sensor.
+    """
+
+    cls_uuid: str = "td_map_with_traj"
+
+    def __init__(self, *args, sim, task, **kwargs):
+        self._sim = sim
+        self._task = task
+        # self.max_human_num = 6
+        # self.human_num = task._human_num
+        self.result_list = None  
+        
+        self.current_episode_id = None
+        self.current_episode_scene_id = None
+        self.current_episode_init_yaw = None
+        
+        self._top_down_map = None
+        
+        
+        self.map_size = 101
+        self.agent_diameter_pixels = 5
+        self.agent_radius_pixels = self.agent_diameter_pixels // 2
+        self.step_distance_pixels = 2
+        self.angle_step_radians = 10 / 120
+        
+        # Define the center position
+        self.center_position = (self.map_size // 2, self.map_size // 2)
+
+        # Actions
+        self.actions = ['left', 'right', 'forward']
+
+        # Initialize agent direction (facing downwards)
+        self.agent_angle = 3 * math.pi / 2  # 270 degrees
+
+        super().__init__(*args, task=task, **kwargs)
+
+    @staticmethod
+    def _get_uuid(*args, **kwargs):
+        return TopDownMapWithTrajectorySensor.cls_uuid
+
+    @staticmethod
+    def _get_sensor_type(*args, **kwargs):
+        return SensorTypes.TENSOR
+
+    def _get_observation_space(self, *args, config, **kwargs):
+        return spaces.Box(
+            shape=(101,101, 3),
+            low=np.finfo(np.float32).min,
+            high=np.finfo(np.float32).max,
+            dtype=np.float32,
+        )
+
+    @staticmethod
+    def _initialize_map(self):
+        """Initialize a zero map with the desired shape."""
+        return np.zeros((1, 101, 101), dtype=np.float32)
+    
+    def _quat_to_xy_heading(self, quat):
+        direction_vector = np.array([0, 0, -1])
+
+        heading_vector = quaternion_rotate_vector(quat, direction_vector)
+
+        phi = cartesian_to_polar(-heading_vector[2], heading_vector[0])[1]
+        return np.array([phi], dtype=np.float32)
+
+    def is_collision(self, position, occupancy_map, agent_radius):
+        # Check if the agent's area overlaps with any obstacles
+        x, y = position
+        for i in range(-agent_radius, agent_radius + 1):
+            for j in range(-agent_radius, agent_radius + 1):
+                if occupancy_map[min(max(y + i, 0), self.map_size-1), min(max(x + j, 0), self.map_size-1),0 ] == 1:
+                    return True
+        return False
+
+    def move_agent(self,occupancy_map , position, angle, action):
+        x, y = position
+        if action == 'left':
+            angle += self.angle_step_radians
+        elif action == 'right':
+            angle -= self.angle_step_radians
+        elif action == 'forward':
+            # Calculate potential new position
+            new_x = int(x + self.step_distance_pixels * math.cos(angle))
+            new_y = int(y - self.step_distance_pixels * math.sin(angle))
+            
+            # Check for collision
+            if not self.is_collision((new_x, new_y), occupancy_map, self.agent_radius_pixels):
+                x, y = new_x, new_y
+            else:
+                # Stay close to the obstacle; calculate the closest valid position
+                last_valid_position = (x, y) #自己加的
+                i = 0
+                while not self.is_collision((x, y), occupancy_map, self.agent_radius_pixels) and i<25:
+                    last_valid_position = (x, y)
+                    x = int(x + 1/120 * math.cos(angle))
+                    y = int(y - 1/120 *math.sin(angle))
+                    i+=1
+                x, y = last_valid_position
+
+        return (x, y), angle
+
+    def draw_trajectory(self, map_img, occupancy_map,trajectory, step_colors):
+        position = self.center_position
+        angle = self.agent_angle
+        previous_position = position
+        
+        
+        for step, action in enumerate(trajectory):
+            position, angle = self.move_agent(occupancy_map, position, angle, action)
+            # Draw the path from the previous position to the current position with a thickness equal to the agent's diameter
+            if position != previous_position:
+                cv2.line(map_img, previous_position, position, step_colors[step], self.agent_diameter_pixels)
+            # Draw the agent's position for this step
+            cv2.circle(map_img, position, self.agent_radius_pixels, step_colors[step], -1)
+            previous_position = position
+
+    def get_observation(self, task, observations, episode, *args: Any, **kwargs: Any):
+        
+        
+        try:
+            # Initialize agent direction (facing downwards)
+            self.agent_angle = 3 * math.pi / 2  # 270 degrees
+
+            future_map = self._initialize_map(self)
+            agent_state = self._sim.get_agent_state()
+
+            rotation_world_start = quaternion_from_coeff(episode.start_rotation)
+            rotation_world_agent = agent_state.rotation
+
+            camera_yaw = self._quat_to_xy_heading(
+                rotation_world_agent.inverse() * rotation_world_start
+            )[0] #- to rotate back
+            
+            if self.current_episode_id != episode.episode_id or self.current_episode_scene_id != episode.scene_id:
+                self.current_episode_id = episode.episode_id
+                self.current_episode_scene_id = episode.scene_id
+                self.current_episode_init_yaw = camera_yaw
+                self._top_down_map = maps.get_topdown_map_from_sim(
+                    self._sim,
+                    map_resolution=1024,#self._map_resolution,
+                    draw_border= True, #self._config.draw_border,
+                    meters_per_pixel = 0.1
+                )
+                # print('self.current_episode_init_yaw', camera_yaw)
+            # Initialize the map instead of the result list
+            # robot_pos = self._sim.get_agent_data(0).articulated_agent.base_pos
+            robot_pos = self._sim.get_agent_state(0).position
+
+            robot_pos = maps.to_grid(
+                robot_pos[2],
+                robot_pos[0],
+                (self._top_down_map.shape[0], self._top_down_map.shape[1]),
+                sim=self._sim,
+            ) #a_x, a_y 
+            
+            # Centering the robot position at the center of the map
+            robot_pixel_x = 50  # Center x in a 101x101 map
+            robot_pixel_y = 50  # Center y in a 101x101 map
+
+            start_row = robot_pos[0] - robot_pixel_x
+            start_col = robot_pos[1] - robot_pixel_y
+
+            # Step 5: Fill the smaller map with the relevant portion of the larger map
+            for i in range(101):
+                for j in range(101):
+                    large_row = start_row + i
+                    large_col = start_col + j
+                    
+                    # Check if within bounds of the large map
+                    if 0 <= large_row < self._top_down_map.shape[0] and 0 <= large_col < self._top_down_map.shape[1]:
+                        # future_map[self._top_down_map[large_row, large_col], i, j] = 1   
+                        if self._top_down_map[large_row, large_col] ==  0:
+                            future_map[0, i, j] = 1   
+            future_map = np.transpose(future_map, (1, 2, 0))
+
+
+            # camera_yaw -= self.current_episode_init_yaw
+            # # print('camera_yaw degree ', np.degrees(camera_yaw))
+            camera_yaw -= self.current_episode_init_yaw
+            camera_yaw = -camera_yaw
+            
+            center = (future_map.shape[0] // 2, future_map.shape[1] // 2)  # (width, height) for OpenCV
+            rotation_matrix = cv2.getRotationMatrix2D(center, np.degrees(camera_yaw)+90, 1.0) 
+            for i in range(1):
+                future_map[:,:,i] = cv2.warpAffine(future_map[:,:,i], rotation_matrix, (101, 101), flags=cv2.INTER_LINEAR)
+            future_map = future_map[:, ::-1,:]
+            
+            color_map = cv2.cvtColor(future_map * 255, cv2.COLOR_GRAY2BGR)
+            trajectories = [(a1, a2, a3, a4, a5) for a1 in self.actions for a2 in self.actions for a3 in self.actions 
+                    for a4 in self.actions for a5 in self.actions] # for a6 in self.actions for a7 in self.actions for a8 in self.actions]
+            step_colors = [
+                (255, 0, 0),   # Red
+                (0, 255, 0),   # Green
+                (0, 0, 255),   # Blue
+                (255, 255, 0), # Cyan
+                (255, 0, 255), # Magenta
+                # (0, 255, 255), # Yellow
+                # (128, 0, 128), # Purple
+                # (0, 128, 128)  # Teal
+            ]
+
+            for trajectory in trajectories:
+                self.draw_trajectory(color_map,future_map , trajectory, step_colors)
+
+            return color_map
+        
+        except Exception as e:
+            logger.info("Top Down Map with Trajectory Sensor Exception", e)
+            return np.zeros((101, 101, 5), dtype=np.float32)
+
+
+@registry.register_sensor
+class TopDownMapWithHumanSensor(UsesArticulatedAgentInterface, Sensor):
+    """
+    Assumed Oracle Humanoid Future Trajectory Sensor.
+    """
+
+    cls_uuid: str = "td_map_with_human"
+
+    def __init__(self, *args, sim, task, **kwargs):
+        self._sim = sim
+        self._task = task
+        # self.max_human_num = 6
+        # self.human_num = task._human_num
+        self.result_list = None  
+        
+        self.current_episode_id = None
+        self.current_episode_scene_id = None
+        self.current_episode_init_yaw = None
+        
+        self._top_down_map = None
+        
+        
+        self.map_size = 101
+        self.agent_diameter_pixels = 5
+        self.agent_radius_pixels = self.agent_diameter_pixels // 2
+        self.step_distance_pixels = 2
+        self.angle_step_radians = 10 / 120
+        
+        # Define the center position
+        self.center_position = (self.map_size // 2, self.map_size // 2)
+
+        # Actions
+        self.actions = ['left', 'right', 'forward']
+
+        # Initialize agent direction (facing downwards)
+        self.agent_angle = 3 * math.pi / 2  # 270 degrees
+        
+        self.future_step = kwargs['config']['future_step'] 
+        # self.max_human_num = 6
+        self.human_num = task._human_num
+        self.episode = None
+
+        super().__init__(*args, task=task, **kwargs)
+
+    @staticmethod
+    def _get_uuid(*args, **kwargs):
+        return TopDownMapWithHumanSensor.cls_uuid
+
+    @staticmethod
+    def _get_sensor_type(*args, **kwargs):
+        return SensorTypes.TENSOR
+
+    def _get_observation_space(self, *args, config, **kwargs):
+        return spaces.Box(
+            shape=(3**self.future_step,),
+            low=np.finfo(np.float32).min,
+            high=np.finfo(np.float32).max,
+            dtype=np.float32,
+        )
+
+    @staticmethod
+    def _initialize_map(self):
+        """Initialize a zero map with the desired shape."""
+        return np.zeros((self.future_step+1, 101, 101), dtype=np.float32)
+    
+    def _quat_to_xy_heading(self, quat):
+        direction_vector = np.array([0, 0, -1])
+
+        heading_vector = quaternion_rotate_vector(quat, direction_vector)
+
+        phi = cartesian_to_polar(-heading_vector[2], heading_vector[0])[1]
+        return np.array([phi], dtype=np.float32)
+
+    def is_collision(self, position, occupancy_map, agent_radius):
+        # Check if the agent's area overlaps with any obstacles
+        x, y = position
+        for i in range(-agent_radius, agent_radius + 1):
+            for j in range(-agent_radius, agent_radius + 1):
+                if occupancy_map[min(max(y + i, 0), self.map_size-1), min(max(x + j, 0), self.map_size-1),0 ] == 1:
+                    return True
+        return False
+
+    def move_agent(self,occupancy_map , position, angle, action):
+        x, y = position
+        if action == 'left':
+            angle += self.angle_step_radians
+        elif action == 'right':
+            angle -= self.angle_step_radians
+        elif action == 'forward':
+            # Calculate potential new position
+            new_x = int(x + self.step_distance_pixels * math.cos(angle))
+            new_y = int(y - self.step_distance_pixels * math.sin(angle))
+            
+            # Check for collision
+            if not self.is_collision((new_x, new_y), occupancy_map, self.agent_radius_pixels):
+                x, y = new_x, new_y
+            else:
+                # Stay close to the obstacle; calculate the closest valid position
+                last_valid_position = (x, y) #自己加的
+                i = 0
+                while not self.is_collision((x, y), occupancy_map, self.agent_radius_pixels) and i<25:
+                    last_valid_position = (x, y)
+                    x = int(x + 1/120 * math.cos(angle))
+                    y = int(y - 1/120 *math.sin(angle))
+                    i+=1
+                x, y = last_valid_position
+
+        return (x, y), angle
+
+    def draw_trajectory(self, occupancy_map,trajectory, index_map):
+        position = self.center_position
+        realworld_x, realworld_y = maps.from_grid(
+            index_map[position[0],position[1]][0],
+            index_map[position[0],position[1]][1],
+            (self._top_down_map.shape[0], self._top_down_map.shape[1]),
+            sim=self._sim,
+        )
+        distance_to_target = self._sim.geodesic_distance(
+                    [realworld_x,self._sim.get_agent_data(0).articulated_agent.base_pos[1],realworld_y],
+                    [goal.position for goal in self.episode.goals],
+                    self.episode,
+                )
+        angle = self.agent_angle
+        previous_position = position
+        
+        
+        for step, action in enumerate(trajectory):
+            map_img = np.zeros((101, 101), dtype=np.float32)
+            position, angle = self.move_agent(occupancy_map, position, angle, action)
+            # Draw the path from the previous position to the current position with a thickness equal to the agent's diameter
+            if position != previous_position:
+                cv2.line(map_img, previous_position, position, 1, self.agent_diameter_pixels)
+            # Draw the agent's position for this step
+            cv2.circle(map_img, position, self.agent_radius_pixels, 1, -1)
+            exists_overlap = np.any(np.logical_and(map_img == 1, occupancy_map[:,:,step+1] == 1))
+            if exists_overlap:
+                return -100
+            previous_position = position
+            
+        realworld_x, realworld_y = maps.from_grid(
+            index_map[position[0],position[1]][0],
+            index_map[position[0],position[1]][1],
+            (self._top_down_map.shape[0], self._top_down_map.shape[1]),
+            sim=self._sim,
+        )
+        distance_to_target1 = self._sim.geodesic_distance(
+                    [realworld_x,self._sim.get_agent_data(0).articulated_agent.base_pos[1],realworld_y],
+                    [goal.position for goal in self.episode.goals],
+                    self.episode,
+                )
+        if distance_to_target1>1000 or distance_to_target>1000:
+            return 0
+        # logger.info("distance_to_target1, distance_to_target, ", distance_to_target1, distance_to_target, distance_to_target1 - distance_to_target)
+        return distance_to_target1 - distance_to_target
+
+    def get_observation(self, task, observations, episode, *args: Any, **kwargs: Any):
+        
+        
+        try:
+            # Initialize agent direction (facing downwards)
+            self.agent_angle = 3 * math.pi / 2  # 270 degrees
+
+            future_map = self._initialize_map(self)
+            agent_state = self._sim.get_agent_state()
+
+            rotation_world_start = quaternion_from_coeff(episode.start_rotation)
+            rotation_world_agent = agent_state.rotation
+
+            camera_yaw = self._quat_to_xy_heading(
+                rotation_world_agent.inverse() * rotation_world_start
+            )[0] #- to rotate back
+            
+            if self.current_episode_id != episode.episode_id or self.current_episode_scene_id != episode.scene_id:
+                self.current_episode_id = episode.episode_id
+                self.current_episode_scene_id = episode.scene_id
+                self.current_episode_init_yaw = camera_yaw
+                self._top_down_map = maps.get_topdown_map_from_sim(
+                    self._sim,
+                    map_resolution=1024,#self._map_resolution,
+                    draw_border= True, #self._config.draw_border,
+                    meters_per_pixel = 0.1
+                )
+                self.episode = episode
+                # print('self.current_episode_init_yaw', camera_yaw)
+            # Initialize the map instead of the result list
+            # robot_pos = self._sim.get_agent_data(0).articulated_agent.base_pos
+            robot_pos = self._sim.get_agent_state(0).position
+
+            robot_pos = maps.to_grid(
+                robot_pos[2],
+                robot_pos[0],
+                (self._top_down_map.shape[0], self._top_down_map.shape[1]),
+                sim=self._sim,
+            ) #a_x, a_y 
+            
+            # Centering the robot position at the center of the map
+            robot_pixel_x = 50  # Center x in a 101x101 map
+            robot_pixel_y = 50  # Center y in a 101x101 map
+
+            start_row = robot_pos[0] - robot_pixel_x
+            start_col = robot_pos[1] - robot_pixel_y
+
+            # Step 5: Fill the smaller map with the relevant portion of the larger map
+            index_map = np.zeros((101,101, 2))
+            for i in range(101):
+                for j in range(101):
+                    large_row = start_row + i
+                    large_col = start_col + j
+                    
+                    # Check if within bounds of the large map
+                    if 0 <= large_row < self._top_down_map.shape[0] and 0 <= large_col < self._top_down_map.shape[1]:
+                        # future_map[self._top_down_map[large_row, large_col], i, j] = 1   
+                        if self._top_down_map[large_row, large_col] ==  0:
+                            future_map[0, i, j] = 1   
+                            index_map[i,j, 0] =large_row
+                            index_map[i,j, 1] =large_col
+                            
+                            
+            human_num = self._task._human_num
+            # Initialize the map instead of the result list
+            if human_num != self.human_num:
+                self.human_num = human_num
+
+            # if self.human_num == 0:
+            #     return np.transpose(future_map, (1, 2, 0))
+            
+            human_future_trajectory = task.measurements.measures.get("human_future_trajectory")._metric
+            # if not human_future_trajectory:
+            #     return np.transpose(future_map, (1, 2, 0))
+
+            # Get robot position
+            robot_pos = np.array(self._sim.get_agent_data(0).articulated_agent.base_pos)[[0, 2]]
+
+            if human_future_trajectory is not None:
+                for key, trajectories in human_future_trajectory.items():
+                    trajectories = np.array(trajectories)
+                    trajectories = trajectories.astype('float32')
+                    
+                    for t in range(len(trajectories)):
+                        human_position = trajectories[t, [0, 2]] - robot_pos
+                        
+                        # Calculate distance from robot to human
+                        distance = np.linalg.norm(human_position)
+
+                        # Only draw if the human is within 10 meters
+                        if distance <= 10.0:
+                            # Convert human position to pixel coordinates
+                            human_pixel_x = int(50 + (-human_position[1]) * 10)  # Centering the human position
+                            human_pixel_y = int(50 + (-human_position[0]) * 10)  # Centering the human position
+                            
+                            # Ensure pixel coordinates are within the map bounds
+                            if 0 <= human_pixel_x < 101 and 0 <= human_pixel_y < 101 and t<self.future_step:
+                                # Draw a filled circle for the human on the map
+                                # future_map = np.ascontiguousarray(future_map)
+                                cv2.circle(future_map[t+1, :, :], (human_pixel_x, human_pixel_y), radius=3, color=1, thickness=-1)
+                
+            
+            future_map = np.transpose(future_map, (1, 2, 0))
+
+
+            # camera_yaw -= self.current_episode_init_yaw
+            # # print('camera_yaw degree ', np.degrees(camera_yaw))
+            camera_yaw -= self.current_episode_init_yaw
+            camera_yaw = -camera_yaw
+            
+            center = (future_map.shape[0] // 2, future_map.shape[1] // 2)  # (width, height) for OpenCV
+            rotation_matrix = cv2.getRotationMatrix2D(center, np.degrees(camera_yaw)+90, 1.0) 
+            for i in range(self.future_step+1):
+                future_map[:,:,i] = cv2.warpAffine(future_map[:,:,i], rotation_matrix, (101, 101), flags=cv2.INTER_LINEAR)
+            future_map[:, :,0] = future_map[:, ::-1,0]
+            
+            for i in range(2):
+                index_map[:,:,i] = cv2.warpAffine(index_map[:,:,i], rotation_matrix, (101, 101), flags=cv2.INTER_NEAREST)
+            index_map[:, :,0] = index_map[:, ::-1,0]
+            index_map[:, :,1]  = index_map[:, ::-1,1]
+            
+            trajectories = [(a1, a2, a3, a4, a5) for a1 in self.actions for a2 in self.actions for a3 in self.actions 
+                    for a4 in self.actions for a5 in self.actions] # for a6 in self.actions for a7 in self.actions for a8 in self.actions]
+
+            traj_costs = np.zeros((3**self.future_step,))
+            for i, trajectory in enumerate(trajectories):
+                
+                traj_costs[i] = self.draw_trajectory(future_map , trajectory, index_map)
+            # logger.info("Top Down Map with Trajectory Sensor", traj_costs)
+            return traj_costs
+        
+        except Exception as e:
+            logger.info("Top Down Map with Trajectory Sensor Exception", e)
+            return np.zeros((101, 101, 5), dtype=np.float32)
+
 
 
 cs = ConfigStore.instance()
@@ -761,4 +1280,18 @@ cs.store(
     group="habitat/task/lab_sensors",
     name="td_map",
     node=TopDownMapSensorConfig,
+)
+
+cs.store(
+    package="habitat.task.lab_sensors.td_map_with_traj",
+    group="habitat/task/lab_sensors",
+    name="td_map_with_traj",
+    node=TopDownMapWithTrajectorySensorConfig,
+)
+
+cs.store(
+    package="habitat.task.lab_sensors.td_map_with_human",
+    group="habitat/task/lab_sensors",
+    name="td_map_with_human",
+    node=TopDownMapWithHumanSensorConfig,
 )

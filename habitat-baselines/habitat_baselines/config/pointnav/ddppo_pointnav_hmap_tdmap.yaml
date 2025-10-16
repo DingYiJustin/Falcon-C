@@ -11,7 +11,7 @@ defaults:
   # - /habitat/task/lab_sensors@habitat.task.lab_sensors.main_agent_pointgoal_with_gps_compass: pointgoal_with_gps_compass_sensor
   # - /habitat/task/lab_sensors@habitat.task.lab_sensors.main_agent_localization_sensor: localization_sensor 
   # - /habitat/task/lab_sensors@habitat.task.lab_sensors.main_agent_gps: gps_sensor 
-  # - /habitat/task/lab_sensors@habitat.task.lab_sensors.main_agent_compass: compass_sensor 
+  - /habitat/task/lab_sensors@habitat.task.lab_sensors.main_agent_td_map: td_map
   - _self_
 
 habitat:

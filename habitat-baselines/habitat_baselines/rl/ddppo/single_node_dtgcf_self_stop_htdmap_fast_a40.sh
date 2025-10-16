@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -p debug         # 指定GPU队列 i64m1tga40u
+#SBATCH -p emergency_gpua40         # 指定GPU队列 i64m1tga40u
 #SBATCH -o output_%j.txt  # 指定作业标准输出文件，%j为作业号
 #SBATCH -e err_%j.txt    # 指定作业标准错误输出文件
 #SBATCH -n 16           # 指定CPU总核心数
@@ -22,6 +22,8 @@ TOTAL_GPU=1
 # TOTAL_CPU_CORES=$((CPU_CORES_PER_GPU * TOTAL_GPU))
 
 # set -x
+python -u -m assist_training_resnet.py > evaluation/dtgcf_hmap_self_stop_fast_a40/hm3d/c_train.log 2>&1 &
+
 python -u -m torch.distributed.launch \
     --master_port 20200 \
     --use_env \

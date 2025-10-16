@@ -24,8 +24,8 @@ TOTAL_GPU=1
 # set -x
 
 python -u -m habitat-baselines.habitat_baselines.run \
-    --config-name=social_nav_v2/dtgc_hmap_self_stop_hm3d_eval_with_csv.yaml \
-    > evaluation/dtgc5_hmap_self_stop/hm3d/eval-dtgcf-ckpt56.log 2>&1
+    --config-name=social_nav_v2/dtgc_self_stop_hm3d_eval_with_csv.yaml \
+    > evaluation/dtgc5_hmap_self_stop/hm3d/eval-dtgcf-ckpt40.log 2>&1
 
 
 echo "FINISH"
