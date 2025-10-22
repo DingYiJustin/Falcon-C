@@ -280,7 +280,7 @@ def observations_to_image(observation: Dict, info: Dict) -> np.ndarray:
                 # overlay = np.zeros((height, width, 3), dtype=np.uint8)
                 visual_map[human_mask] = color  # Set the overlay color where humans are present
             render_obs_images.append(visual_map)
-        elif 'td_map_with_traj' in sensor_name:
+        elif 'td_map_with_traj' in sensor_name or 'mpc_with_human_map' in sensor_name:
             obs_k = observation[sensor_name].cpu().numpy()
             visual_map = obs_k
             # height, width, future_steps = obs_k.shape

@@ -16,7 +16,7 @@ from habitat_baselines.rl.ppo.policy import Policy, PolicyActionData
 from habitat_baselines.utils.common import get_num_actions
 
 import math
-
+import copy
 
 @baseline_registry.register_policy
 class MapMPCPolicy(nn.Module, Policy):
@@ -52,6 +52,25 @@ class MapMPCPolicy(nn.Module, Policy):
         self.actions = ['left', 'right', 'forward']
         self.trajectories = [(a1, a2, a3, a4, a5) for a1 in self.actions for a2 in self.actions for a3 in self.actions 
                     for a4 in self.actions for a5 in self.actions]
+        
+        # self.trajectories = [[]]
+        nextTimeStep = []
+        
+        self.future_step =8 #5
+        # for step, action in enumerate(trajectory):
+        # for step in range(self.future_step): 
+        #     while len(self.trajectories)>0:
+        #         l = self.trajectories.pop()
+        #         for action in self.actions:
+        #             a = copy.deepcopy(l)
+        #             a.append(action)
+        #             nextTimeStep.append(a)
+        #     self.trajectories = nextTimeStep
+        #     nextTimeStep = []
+        print("self.trajectories", self.trajectories)
+        
+        self.test = 0
+                    
 
     @classmethod
     def from_config(
@@ -151,7 +170,7 @@ class MapMPCPolicy(nn.Module, Policy):
         :param tensor: A 2D torch tensor of shape (batch_size, numOfTrajectories)
         :return: A 2D list with shape (batch_size, maximum 3)
         """
-        print("tensor.shape", tensor.shape)
+        # print("tensor.shape", tensor.shape)
         batch_size, num_of_trajectories = tensor.shape
         result = []  # Initialize a list for each batch
         map = {'left':2, 'right':3, 'forward':1}
@@ -231,16 +250,31 @@ class MapMPCPolicy(nn.Module, Policy):
                     actions[i] = 1  
                     self.repeated_turn_count[i] = 0  
         action_to_follow = actions
-        print("action_to_follow", action_to_follow)
-        print("observations['td_map_with_human']", torch.max( observations['td_map_with_human'], dim=1), torch.min( observations['td_map_with_human'], dim=1))
-        mpc_actions = self.get_unique_actions(observations['td_map_with_human'])
-        
+        # print("action_to_follow", action_to_follow)
+        # print("observations['td_map_with_human']", torch.max( observations['td_map_with_human'], dim=1), torch.min( observations['td_map_with_human'], dim=1))
+        # print("observations['mpc_with_human']", torch.max( observations['mpc_with_human'], dim=1), torch.min( observations['mpc_with_human'], dim=1))
+        mpc_actions = self.get_unique_actions(observations['mpc_with_human'])
+        print("observations['localization_sensor'][0, 2]", observations['localization_sensor'][0, 0], observations['localization_sensor'][0, 2], observations['localization_sensor'][0, -1])
+        # if self.test < 5:
+        #     actions = torch.ones(
+        #         size=prev_actions.shape,
+        #         device=masks.device,
+        #         dtype=torch.int64,
+        #     ) *2
+        # else:
+        #     actions = torch.ones(
+        #         size=prev_actions.shape,
+        #         device=masks.device,
+        #         dtype=torch.int64,
+        #     ) 
+        # self.test +=1
         actions = torch.zeros(
             size=prev_actions.shape,
             device=masks.device,
             dtype=torch.int64,
         )
         # print("action.shape", actions.shape)
+        
         for i in range(prev_actions.shape[0]):
             if action_to_follow[i].item() != 0:
                 if len(mpc_actions[i]) < 3:

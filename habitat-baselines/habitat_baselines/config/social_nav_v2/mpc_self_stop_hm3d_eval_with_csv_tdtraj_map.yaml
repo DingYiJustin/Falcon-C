@@ -24,8 +24,8 @@ defaults:
   - /habitat/task/actions@habitat.task.actions.agent_6_oracle_nav_randcoord_action_obstacle: oracle_nav_action 
   - /habitat/task/lab_sensors@habitat.task.lab_sensors.agent_0_pointgoal_with_gps_compass: pointgoal_with_gps_compass_sensor
   # - /habitat/task/lab_sensors@habitat.task.lab_sensors.agent_0_oracle_humanoid_future_trajectory_map: oracle_humanoid_future_trajectory_map
-  - /habitat/task/lab_sensors@habitat.task.lab_sensors.agent_0_td_map_with_traj: td_map_with_traj
-  - /habitat/task/lab_sensors@habitat.task.lab_sensors.agent_0_td_map_with_human: td_map_with_human
+  - /habitat/task/lab_sensors@habitat.task.lab_sensors.agent_0_mpc_with_human_map: mpc_with_human_map
+  - /habitat/task/lab_sensors@habitat.task.lab_sensors.agent_0_mpc_with_human: mpc_with_human
   - /habitat/task/lab_sensors@habitat.task.lab_sensors.agent_0_oracle_shortest_path_sensor: oracle_shortest_path_sensor
   - _self_
   
@@ -42,8 +42,8 @@ habitat:
       - agent_0_localization_sensor
       # - agent_0_human_num_sensor  
       - agent_0_oracle_humanoid_future_trajectory
-      - agent_0_td_map_with_traj
-      - agent_0_td_map_with_human
+      - agent_0_mpc_with_human_map
+      - agent_0_mpc_with_human
       - agent_0_oracle_shortest_path_sensor
       # - agent_0_oracle_humanoid_future_trajectory_map
   task:

@@ -435,7 +435,7 @@ class HumanFutureTrajectory(UsesArticulatedAgentInterface, Measure):
     def __init__(self, *args, sim, **kwargs):
         self._sim = sim
         self.human_num = kwargs['task']._human_num
-        self.output_length = 5
+        self.output_length = 8 #5
         self.target_dict = self._initialize_target_dict(self.human_num)
         self.path_dict = {}
         super().__init__(*args, sim=sim, **kwargs)

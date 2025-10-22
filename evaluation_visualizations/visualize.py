@@ -111,6 +111,77 @@ def filter_unsuccessful_episodes(input_csv, output_csv, success_column='success'
     filtered_df.to_csv(output_csv, index=False)
     
     print(f"Filtered episodes saved to {output_csv}")
+    
+def filter_unsuccessful_episodes_success_in_df2(df1, df2, output_csv, success_column='success', id_column='episode_id'):
+    """
+    Filter episodes that fail in df1 and succeed in df2, and save to a CSV file.
+
+    Parameters:
+    df1 (pd.DataFrame): DataFrame containing the first set of episodes.
+    df2 (pd.DataFrame): DataFrame containing the second set of episodes.
+    output_csv (str): Path to the output CSV file.
+    success_column (str): The column name that indicates success (default is 'success').
+    id_column (str): The column name that uniquely identifies episodes (default is 'episode_id').
+
+    Returns:
+    None
+    """
+    # Ensure the necessary columns are present in df1 and df2
+    if 'distance_to_goal' not in df1.columns or success_column not in df1.columns or id_column not in df1.columns:
+        print("df1 does not contain the necessary columns.")
+        return
+    
+    if success_column not in df2.columns or id_column not in df2.columns:
+        print("df2 does not contain the necessary columns.")
+        return
+    
+    # common_ids = df1[id_column].isin(df2[id_column])
+    # print(len(df1), len(df2))
+    
+    # # Filter both DataFrames for common episode IDs
+    # filtered_df1 = df1[common_ids]
+    # filtered_df2 = df2[df2[id_column].isin(filtered_df1[id_column])]
+    
+    # common_ids = df1['episode_id'].isin(df2['episode_id'])
+    a = df['episode_id'].tolist()
+    b = df2['episode_id'].tolist()
+    episode_ids_to_check = list(set(a) & set(b))
+    print('aaa',len(episode_ids_to_check), len(df2['episode_id'].isin(df1['episode_id'])))
+    
+    # Extract rows with common episode_ids from both DataFrames
+    filtered_df1 = df1[df1['episode_id'].isin(episode_ids_to_check)]
+    filtered_df2 = df2[df2['episode_id'].isin(episode_ids_to_check)]
+    
+    print(len(filtered_df1), len(filtered_df2))
+    
+    # Get successful episodes from both DataFrames
+    successful_df1 = filtered_df1[filtered_df1[success_column] == 1]
+    successful_df2 = filtered_df2[filtered_df2[success_column] == 1]
+    
+    a1 = successful_df1['episode_id'].tolist()
+    a2 = successful_df2['episode_id'].tolist()
+    episode_ids_success = set(list(set(a1) | set(a2)))
+    print(len(episode_ids_to_check), len(a1),len(a2), len(episode_ids_success),len(a1)/len(episode_ids_to_check), len(a2)/len(episode_ids_to_check),len(episode_ids_success)/len(episode_ids_to_check))
+
+    # Combine successful episodes into a single DataFrame (union)
+    # print(len(pd.concat([successful_df1, successful_df2])))
+    successful_union = pd.concat([successful_df1, successful_df2]).drop_duplicates(subset=id_column)
+    print(len(episode_ids_to_check), len(successful_df1),len(successful_df2), len(successful_union),len(successful_df1)/len(episode_ids_to_check), len(successful_df2)/len(episode_ids_to_check),len(successful_union)/len(episode_ids_to_check))
+    
+    
+    # Filter for unsuccessful episodes in df1
+    unsuccessful_df1 = df1[(df1[success_column] != 1)]
+    
+    # Get the IDs of unsuccessful episodes
+    unsuccessful_ids = unsuccessful_df1[id_column].unique()
+    
+    # Filter for successful episodes in df2 that match the unsuccessful IDs from df1
+    successful_in_df2 = df2[(df2[success_column] == 1) & (df1[id_column].isin(unsuccessful_ids))]
+    
+    # Save the filtered DataFrame to the output CSV file
+    successful_in_df2.to_csv(output_csv, index=False)
+    
+    print(f"Filtered episodes saved to {output_csv}")
 
 
 def output_failed_episodes_to_csv(dataframe, csv_filename):
@@ -125,17 +196,19 @@ def output_failed_episodes_to_csv(dataframe, csv_filename):
     None
     """
     # Filter episodes where true_success is not met
-    failed_episodes = dataframe[dataframe['true_success'] != True]
+    failed_episodes = dataframe[dataframe['success'] != True]
 
     # Output to CSV
     failed_episodes.to_csv(csv_filename, index=False)
 
-df = pd.read_csv('./evaluation dtgcf_hmap_self_stop_fast_a40 hm3d checkpoints ckpt.26.pth.csv')
+df = pd.read_csv('./evaluation dtgcf_self_stop_final_fast_a40 hm3d checkpoints ckpt.184.pth.csv')
 # print_column_means(df)
-print_column_means_and_percentage(df)
+# print_column_means_and_percentage(df)
 
-df2 = pd.read_csv('evaluation dtgcf_hmap_self_stop_fast_a40 hm3d checkpoints ckpt.41.pth.csv')#'./pretrained_model falcon_noaux_25.pth.csv')
+df2 = pd.read_csv('evaluation dtgcf_self_stop_final_fast_a40 hm3d checkpoints ckpt.134.pth.csv')#'./pretrained_model falcon_noaux_25.pth.csv')
 compare_episode_data(df,df2)
 
 # filter_unsuccessful_episodes('./evaluation falcon_hmap_1 hm3d checkpoints ckpt.10-1.pth.csv', 'to_get_video.csv')
-output_failed_episodes_to_csv(df2, 'to_get_video.csv')
+# output_failed_episodes_to_csv(df2, 'to_get_video.csv')
+
+filter_unsuccessful_episodes_success_in_df2(df, df2, 'to_get_video.csv')
